@@ -1,0 +1,71 @@
+services:
+  # 1. PostgreSQL 16 with native pgvector extension
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: sagent-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: sagent
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. FastAPI AI Engine & Multi-Agent Orchestrator
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sagent-backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-gemini-embedding-001}
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgrespassword@db:5432/sagent
+      - APP_ENV=development
+      - CORS_ORIGINS=["http://localhost:5173","http://localhost:3000","http://127.0.0.1:5173"]
+      - MAX_TICKET_PER_SESSION=${MAX_TICKET_PER_SESSION:-10}
+      - SESSION_EXPIRY_DAYS=${SESSION_EXPIRY_DAYS:-7}
+      - MAX_AUTOMATED_REFUND_USD=${MAX_AUTOMATED_REFUND_USD:-250.0}
+      - RATE_LIMIT_RPM=${RATE_LIMIT_RPM:-120}
+      - SECURITY_ENABLED=${SECURITY_ENABLED:-true}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/tests:/app/tests
+
+  # 3. React 18 + Vite + Tailwind CSS Dashboard
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sagent-frontend
+    restart: always
+    depends_on:
+      - backend
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - VITE_SAGENT_API_KEY=${SAGENT_API_KEY:-sagent-sec-key-2026}
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/vite.config.js:/app/vite.config.js
+      - ./frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./frontend/index.html:/app/index.html
+
+volumes:
+  pgvector_data:
