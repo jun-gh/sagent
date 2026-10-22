@@ -47,6 +47,39 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def sanitize_database_url(cls, v: str) -> str:
+        if not v or not isinstance(v, str):
+            return v
+        url_str = v.strip()
+        # Convert standard postgres:// or postgresql:// to postgresql+asyncpg://
+        if url_str.startswith("postgres://"):
+            url_str = "postgresql+asyncpg://" + url_str[len("postgres://"):]
+        elif url_str.startswith("postgresql://") and not url_str.startswith("postgresql+"):
+            url_str = "postgresql+asyncpg://" + url_str[len("postgresql://"):]
+
+        # asyncpg does not accept sslmode or channel_binding query params
+        if "asyncpg" in url_str:
+            try:
+                from sqlalchemy.engine.url import make_url
+                url = make_url(url_str)
+                query = dict(url.query)
+                changed = False
+                if "sslmode" in query:
+                    mode = query.pop("sslmode")
+                    if "ssl" not in query:
+                        query["ssl"] = mode
+                    changed = True
+                if "channel_binding" in query:
+                    query.pop("channel_binding")
+                    changed = True
+                if changed:
+                    url_str = url._replace(query=query).render_as_string(hide_password=False)
+            except Exception:
+                pass
+        return url_str
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:

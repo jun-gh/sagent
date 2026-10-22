@@ -21,12 +21,17 @@ class GeminiClient:
 
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         settings = get_settings()
-        self.api_key = api_key or settings.GEMINI_API_KEY
+        self.api_key = api_key if api_key is not None else settings.GEMINI_API_KEY
         self.model = model or settings.GEMINI_MODEL
         self.embedding_model = settings.EMBEDDING_MODEL
         self.max_retries = settings.MAX_GEMINI_RETRIES
         self.base_delay = settings.RETRY_BASE_DELAY
         self.max_delay = settings.RETRY_MAX_DELAY
+        self.last_usage_metadata: Dict[str, int] = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+        }
 
     def is_configured(self) -> bool:
         """Checks if a valid API key has been configured."""
@@ -48,8 +53,8 @@ class GeminiClient:
         url = f"{self.BASE_URL}/{endpoint}"
         retries_attempted = 0
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            for attempt in range(self.max_retries + 1):
+        for attempt in range(self.max_retries + 1):
+            async with httpx.AsyncClient(timeout=httpx.Timeout(25.0, connect=10.0)) as client:
                 try:
                     logger.debug("Gemini request attempt %d to %s", attempt + 1, endpoint)
                     response = await client.request(
@@ -62,17 +67,17 @@ class GeminiClient:
 
                     # Check for rate limit
                     if response.status_code == 429:
-                        retries_attempted += 1
                         error_data = response.json().get("error", {}) if response.content else {}
                         err_msg = error_data.get("message", "Rate limit exceeded (HTTP 429).")
                         logger.warning(
                             "Gemini 429 Quota Exceeded on attempt %d/%d: %s",
-                            retries_attempted,
+                            attempt + 1,
                             self.max_retries,
                             err_msg,
                         )
 
                         if attempt < self.max_retries:
+                            retries_attempted += 1
                             # Exponential backoff with jitter: delay = min(max_delay, base * 2^attempt + jitter)
                             jitter = random.uniform(0.1, 0.5)
                             backoff = min(self.max_delay, (self.base_delay * (2 ** attempt)) + jitter)
@@ -168,6 +173,7 @@ class GeminiClient:
 
         endpoint = f"models/{target_model}:generateContent"
         data = await self._execute_with_retry("POST", endpoint, payload)
+        self._record_usage(data, prompt)
         
         try:
             candidates = data.get("candidates", [])
@@ -211,6 +217,7 @@ class GeminiClient:
 
         endpoint = f"models/{target_model}:generateContent"
         data = await self._execute_with_retry("POST", endpoint, payload)
+        self._record_usage(data, prompt)
 
         try:
             candidates = data.get("candidates", [])
@@ -229,6 +236,28 @@ class GeminiClient:
             raise GeminiAPIException("No valid candidate returned from Gemini.", details=data)
         except json.JSONDecodeError as jde:
             raise GeminiAPIException(f"Failed to decode JSON from Gemini output: {str(jde)}", details=data)
+
+    def _record_usage(self, data: Dict[str, Any], prompt: str = "") -> None:
+        """Extracts usageMetadata from response or estimates tokens."""
+        usage = data.get("usageMetadata", {})
+        if usage:
+            self.last_usage_metadata = {
+                "prompt_tokens": usage.get("promptTokenCount", 0),
+                "completion_tokens": usage.get("candidatesTokenCount", 0),
+                "total_tokens": usage.get("totalTokenCount", 0),
+            }
+        else:
+            p_tok = max(1, len(prompt) // 4)
+            c_tok = 50
+            self.last_usage_metadata = {
+                "prompt_tokens": p_tok,
+                "completion_tokens": c_tok,
+                "total_tokens": p_tok + c_tok,
+            }
+
+    def get_last_usage(self) -> Dict[str, int]:
+        """Returns the token usage metrics from the most recent Gemini call."""
+        return dict(self.last_usage_metadata)
 
     async def get_embedding(self, text: str) -> List[float]:
         """

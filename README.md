@@ -1,10 +1,10 @@
-# Sagent (Ticket Triage Agent) - Phase 1
+# Sagent (Smart Autonomous Gateway for Enterprise Network Ticketing)
 
-An enterprise-grade, autonomous Ticket Triage AI Agent that ingests incoming customer and technical support tickets, classifies intent/urgency, retrieves grounding knowledge via hybrid RAG (pgvector dense embeddings + PostgreSQL FTS BM25 keyword search), and coordinates resolution actions via multi-agent orchestration.
+An enterprise-grade, autonomous Ticket Triage AI multi-agent platform that ingests incoming customer and technical support tickets, classifies intent/urgency, retrieves grounding knowledge via hybrid RAG (pgvector dense embeddings + PostgreSQL FTS BM25 keyword search), coordinates resolution actions via multi-agent orchestration, protects users with comprehensive security guardrails, and provides continuous quality gating through systematic AI evaluations (Evals) and real-time operational telemetry.
 
 ---
 
-## Architecture (Phase 1)
+## System Architecture Overview
 
 ```
                             [ Incoming Support Ticket ]
@@ -83,7 +83,7 @@ In production RAG pipelines, returning a fixed `top_k` can introduce noisy or se
 
 ---
 
-## Phase 2: Security & Guardrails Architecture
+## Enterprise Security & Guardrails Architecture
 
 Sagent implements defense-in-depth across the ingestion, reasoning, retrieval, and response synthesis lifecycles.
 
@@ -153,53 +153,121 @@ Sagent implements defense-in-depth across the ingestion, reasoning, retrieval, a
 
 ---
 
+## Systematic AI Evaluations (Evals), Telemetry & Observability
+
+Sagent implements rigorous, quantitative quality gates, token cost accounting, and real-time production observability to prevent regressions across model upgrades or knowledge base updates.
+
+### 1. Golden Evaluation Suite (`backend/tests/evals/golden_dataset.json`)
+A curated benchmark suite of 20 diverse, realistic support scenarios covering:
+- Complex technical errors (PostgreSQL connection pool exhaustions, deadlocks, 429 rate limits)
+- Billing edge cases and refund claims exceeding automated caps
+- Auth & SSO federation errors (expired SAML certificates, clock skew)
+- Real-world prompt injection payloads and delimiter breakout attempts
+- PII and credentials accidentally pasted in ticket descriptions
+
+### 2. Automated Quality Gates
+Every evaluation run grades the multi-agent pipeline against strict enterprise thresholds:
+
+| Quality & Safety Gate | Target Threshold | Description |
+| :--- | :--- | :--- |
+| **Overall Benchmark Pass** | $\ge 85.0\%$ | Aggregate passing percentage across all golden test cases |
+| **Intent Classification Accuracy** | $\ge 80.0\%$ | Precision/Recall for category and urgency prioritization |
+| **Hybrid RAG Grounding Precision** | $\ge 85.0\%$ | Retrieval precision verifying runbook citations are relevant |
+| **Injection Quarantine Rate** | $100.0\%$ | Zero-tolerance containment for adversarial injection attacks |
+| **PII Scrubbing Sanitization Rate** | $100.0\%$ | 100% masking of raw credentials, AWS keys, Stripe tokens, and CCs |
+| **Financial Cap Policy Adherence** | $100.0\%$ | Enforces supervisor verification whenever compensation exceeds $\$250$ |
+
+### 3. Running Systematic AI Evaluations (CLI)
+You can run the eval benchmark anytime locally or in CI:
+
+```bash
+# Run benchmark with default 85% threshold
+python backend/scripts/run_evals.py
+
+# Run in CI mode with custom threshold and markdown export
+python backend/scripts/run_evals.py --ci --threshold 85.0 --output eval_report.md
+```
+
+### 4. Real-Time Telemetry & Token Cost Engine (`GET /api/v1/metrics`)
+Sagent continuously profiles every pipeline stage and accumulates token consumption into sub-cent financial accounting:
+- **Latencies**: Real-time p50, p95, p99, and average response times across all agents.
+- **Token Tracking**: Prompt vs. completion tokens parsed directly from Gemini `usageMetadata`.
+- **Cost Modeling**: Dynamic pricing tiers ($0.075 / 1M input, $0.30 / 1M output on Gemini 2.5 Flash).
+- **Security Observability**: Live counters of quarantined attacks, sanitized PII tickets, and clean traffic.
+- **Live Observability Modal**: Interactive dashboard modal in the UI displaying live latency percentiles, uptime, token usage, and guardrail statistics directly in the browser.
+
+### 5. 1-Click Incident Dispatch & Resolution Hub
+Accelerates mean-time-to-resolution (MTTR) by allowing operators to export pre-formatted incident briefs directly from the triage results view:
+- **Copy Customer Reply**: Single-click copy of the guardrail-sanitized customer reply with clipboard feedback.
+- **Copy Slack Brief**: Generates structured incident notifications formatted specifically for Slack `#incidents` channels.
+- **Copy Jira Issue**: Exports Markdown-formatted issue descriptions with acceptance criteria checklists ready for backlog ingestion.
+
+---
+
 ## Repository Structure
 
 ```
 sagent/
 ├── .github/
 │   └── workflows/
-│       ├── backend-ci.yml
-│       ├── frontend-ci.yml
-│       └── deploy.yml
+│       ├── backend-ci.yml         # Ruff linting & 28-test Pytest suite
+│       ├── frontend-ci.yml        # Vite production build & JSX validation
+│       ├── evals.yml              # Automated AI quality gate on PRs
+│       └── deploy.yml             # Render production deployment trigger
 ├── backend/
 │   ├── app/
 │   │   ├── api/
 │   │   │   └── v1/
 │   │   │       ├── endpoints/
-│   │   │       │   ├── config.py
-│   │   │       │   ├── tickets.py
-│   │   │       │   └── kb.py
+│   │   │       │   ├── config.py  # Dynamic model metadata
+│   │   │       │   ├── tickets.py # Triage ingestion & history
+│   │   │       │   ├── kb.py      # Hybrid RAG search & runbooks
+│   │   │       │   └── metrics.py # Real-time latency, token & cost metrics
 │   │   │       └── router.py
 │   │   ├── core/
-│   │   │   ├── config.py          # Dynamic model & env loading
-│   │   │   ├── database.py        # Async Neon engine & sessionmaker
+│   │   │   ├── config.py          # Dynamic model, Neon URL sanitizer & env loader
+│   │   │   ├── database.py        # Async engine & sessionmaker (pgvector)
 │   │   │   └── errors.py          # Centralized error handlers & envelopes
 │   │   ├── models/                # SQLAlchemy models (Ticket, ContextChunk, Audit)
-│   │   ├── schemas/               # Pydantic v2 schemas
+│   │   ├── schemas/               # Pydantic v2 schemas & security envelopes
 │   │   ├── services/
-│   │   │   ├── ai/                # Gemini client wrapper with 3x backoff
+│   │   │   ├── ai/                # Gemini client (3x backoff) & TokenTracker
 │   │   │   ├── agents/            # Orchestrator, Triage, Researcher, Resolution
+│   │   │   ├── evals/             # Systematic AI Evaluator benchmark engine
+│   │   │   ├── security/          # PIIScrubber, InjectionGuard, OutputGuard
 │   │   │   └── rag/               # Hybrid search with pgvector + tsvector RRF
 │   │   └── main.py
+│   ├── scripts/
+│   │   └── run_evals.py           # CLI benchmark runner (--ci, --threshold)
 │   ├── tests/
+│   │   ├── evals/
+│   │   │   └── golden_dataset.json# 20 curated benchmark scenarios
+│   │   ├── test_config.py
+│   │   ├── test_evals.py
+│   │   ├── test_gemini_client.py
+│   │   ├── test_injection_guard.py
+│   │   ├── test_output_guard.py
+│   │   ├── test_pii_scrubber.py
+│   │   └── test_triage_orchestrator.py
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── .env.example
 ├── frontend/
 │   ├── public/
-│   │   └── favicon.svg            # Capital 'S' minimalist badge favicon
+│   │   └── favicon.svg            # Minimalist brand favicon
 │   ├── src/
-│   │   ├── components/            # UI components (Header, TicketForm, TriageResult, ErrorBanner)
+│   │   ├── components/            # Header, TicketForm, TriageResult, TelemetryModal, KB
 │   │   ├── hooks/                 # Custom React hooks (useAgent, useConfig)
-│   │   ├── services/              # API client with error interceptors
+│   │   ├── services/              # API client with interceptors
 │   │   ├── App.jsx
 │   │   └── main.jsx
 │   ├── package.json
 │   ├── vite.config.js
 │   └── vercel.json
-├── docker-compose.yml             # Local Postgres + pgvector + Backend
+├── docker-compose.yml             # Local Postgres + pgvector + Backend + Frontend
 ├── render.yaml                    # Render Blueprint IaC
+├── PHASE_3_TESTING_GUIDE.md       # Complete step-by-step testing walkthrough
+├── Phase_3_Testing_Guide.docx     # Downloadable testing guide for Google Docs
 └── README.md
 ```
 
@@ -282,5 +350,6 @@ pytest -v
 | `POST` | `/api/v1/tickets/triage` | Ingests ticket, runs multi-agent pipeline, returns classification & grounded reply |
 | `GET` | `/api/v1/tickets` | Lists historical triaged tickets |
 | `GET` | `/api/v1/tickets/{id}` | Retrieves specific ticket by ID |
+| `GET` | `/api/v1/metrics` | Returns real-time latency p50/p95, cumulative tokens, cost, and security metrics |
 | `POST` | `/api/v1/kb/search` | Direct testing of Hybrid RAG (dense + BM25 RRF) |
 | `POST` | `/api/v1/kb/seed` | Seeds default enterprise runbooks into vector store |

@@ -24,11 +24,11 @@ class InjectionGuard:
             ),
             0.95,
         ),
-        # 2. Jailbreak Persona Adoptions (DAN, unrestricted mode, developer mode)
+        # 2. Jailbreak Persona Adoptions (DAN, roleplay games, unrestricted mode, developer mode)
         (
             "JAILBREAK_PERSONA",
             re.compile(
-                r"(?i)\b(?:you\s+are\s+now|act\s+as|pretend\s+to\s+be)\s+(?:dan|unfiltered|jailbroken|an\s+ai\s+without\s+(?:limits|restrictions|rules)|developer\s+mode)\b"
+                r"(?i)\b(?:you\s+are\s+now|act\s+as|pretend\s+to\s+be|roleplay\s+game|play\s+a\s+roleplay|you\s+are\s+\w+,\s+an?\s+omnipotent\s+ai|does\s+not\s+follow\s+safety)\s*(?:dan|unfiltered|jailbroken|an\s+ai\s+without\s+(?:limits|restrictions|rules)|developer\s+mode|omega)?\b"
             ),
             0.90,
         ),
@@ -44,9 +44,9 @@ class InjectionGuard:
         (
             "PROMPT_LEAK_ATTEMPT",
             re.compile(
-                r"(?i)\b(?:reveal|print|show|repeat|display|output)\s+(?:your\s+)?(?:system\s+prompt|initial\s+instructions|hidden\s+rules|developer\s+guidelines|internal\s+configuration)\b"
+                r"(?i)\b(?:reveal|print|show|repeat|display|output)\s+(?:(?:your|all|the)\s+)?(?:(?:secret|system|initial|previous|prior|hidden)\s+(?:instructions|prompts|rules|directives)|system\s+prompt|everything\s+written\s+above|developer\s+guidelines|internal\s+configuration)\b"
             ),
-            0.85,
+            0.90,
         ),
         # 5. Role Hijacking Delimiters (trying to simulate system/assistant chat turns)
         (

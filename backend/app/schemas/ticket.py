@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, Field
 
 
@@ -89,4 +89,5 @@ class TicketTriageResponse(BaseModel):
     pii_redacted_count: int = 0
     injection_risk_score: float = 0.0
     security_details: Optional[Any] = None
+    telemetry: Optional[Dict[str, Any]] = None
 

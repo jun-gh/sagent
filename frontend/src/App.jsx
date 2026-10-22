@@ -4,6 +4,7 @@ import ErrorBanner from './components/ErrorBanner';
 import TicketForm from './components/TicketForm';
 import TriageResult from './components/TriageResult';
 import KnowledgeBaseView from './components/KnowledgeBaseView';
+import TelemetryModal from './components/TelemetryModal';
 import { useConfig } from './hooks/useConfig';
 import { useAgent } from './hooks/useAgent';
 import { Inbox, Database, History, Sparkles, Terminal, ChevronRight } from 'lucide-react';
@@ -22,6 +23,7 @@ export default function App() {
   } = useAgent();
 
   const [activeTab, setActiveTab] = useState('triage'); // 'triage' | 'kb'
+  const [showTelemetry, setShowTelemetry] = useState(false);
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('sagent_theme') || 'dark';
   });
@@ -57,6 +59,7 @@ export default function App() {
         onNewSession={startNewSession}
         theme={theme}
         onToggleTheme={toggleTheme}
+        onOpenTelemetry={() => setShowTelemetry(true)}
       />
 
       {/* Main Container */}
@@ -73,7 +76,7 @@ export default function App() {
             }`}
           >
             <Inbox className="w-4 h-4" />
-            <span>Autonomous Triage</span>
+            <span>Ticket Triage</span>
           </button>
 
           <button
@@ -85,7 +88,7 @@ export default function App() {
             }`}
           >
             <Database className="w-4 h-4" />
-            <span>Hybrid RAG Grounding (pgvector)</span>
+            <span>Knowledge Base Search</span>
           </button>
         </div>
 
@@ -170,8 +173,28 @@ export default function App() {
 
       {/* Modern Footer */}
       <footer className="border-t border-slate-200 dark:border-slate-800/80 bg-white/80 dark:bg-slate-950/80 py-4 text-center text-xs text-slate-500 transition-colors">
-        <p>Sagent Autonomous Ticket Triage &middot; Google Gemini &middot; Neon pgvector &middot; React</p>
+        <p className="flex items-center justify-center flex-wrap gap-x-2 gap-y-1">
+          <span>Smart Autonomous Gateway for Enterprise Network Ticketing {new Date().getFullYear()}</span>
+          <span>&middot;</span>
+          <button
+            type="button"
+            onClick={() => setShowTelemetry(true)}
+            className="inline-flex items-center space-x-1 hover:underline text-slate-500 hover:text-sky-600 dark:text-slate-400 dark:hover:text-sky-300 transition"
+            title="Inspect Phase 3 operational metrics & latency percentiles"
+          >
+            <span>Model: </span>
+            <span className="font-mono font-medium text-sky-600 dark:text-sky-300">
+              {config.gemini_model || 'Detecting...'}
+            </span>
+          </button>
+        </p>
       </footer>
+
+      {/* Live System Telemetry & Ops Observability Modal */}
+      <TelemetryModal
+        isOpen={showTelemetry}
+        onClose={() => setShowTelemetry(false)}
+      />
     </div>
   );
 }

@@ -36,9 +36,22 @@ class OutputGuard:
         ),
     ]
 
-    REFUND_PATTERN = re.compile(
-        r"(?i)\b(?:refund|credit|compensate|reimburse)(?:ed|ing)?\s+(?:you\s+)?(?:\$|USD\s*)?(\d+(?:\.\d{2})?)\b"
-    )
+    REFUND_PATTERNS: List[re.Pattern] = [
+        # Phrase starting with refund/credit action followed by dollar amount (e.g. "refund for the duplicate transaction of $12,400")
+        re.compile(
+            r"(?i)\b(?:refund|credit|compensate|reimburse|charge\s*back)(?:ed|ing|s|ment)?\b[^.\n]{0,80}?(?:\$|USD\s*)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?)"
+        ),
+        # Dollar amount followed by refund/credit action (e.g. "$2,400 refund")
+        re.compile(
+            r"(?i)(?:\$|USD\s*)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?)[^.\n]{0,80}?\b(?:refund|credit|compensate|reimburse|charge\s*back)(?:ed|ing|s|ment)?\b"
+        ),
+        # Direct fallback for simple phrases like "refunded you 850.00" without dollar sign
+        re.compile(
+            r"(?i)\b(?:refund|credit|compensate|reimburse)(?:ed|ing)?\s+(?:(?:you|of|for|an?\s+amount\s+of)\s+)?(?:\$|USD\s*)?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?)\b"
+        ),
+    ]
+    # Backward compatibility alias
+    REFUND_PATTERN = REFUND_PATTERNS[0]
 
     def __init__(self, max_refund_usd: Optional[float] = None):
         if max_refund_usd is not None:
@@ -74,23 +87,27 @@ class OutputGuard:
                 violation = True
 
         # Check 2: Financial Policy Bounds (Refund Caps)
-        refund_match = self.REFUND_PATTERN.search(safe_reply)
-        if refund_match:
-            try:
-                amount = float(refund_match.group(1))
-                if amount > self.max_refund_usd:
-                    logger.warning(
-                        "Refund of $%.2f exceeds automated policy threshold of $%.2f. Intercepting.",
-                        amount,
-                        self.max_refund_usd,
-                    )
-                    safe_reply += (
-                        f"\n\n*Note: Credit adjustments exceeding ${self.max_refund_usd:.2f} "
-                        "require manual verification by our billing operations supervisor.*"
-                    )
-                    reasons.append("REFUND_CAP_EXCEEDED")
-            except (ValueError, IndexError):
-                pass
+        for pat in self.REFUND_PATTERNS:
+            for match in pat.finditer(safe_reply):
+                try:
+                    amount = float(match.group(1).replace(",", ""))
+                    if amount > self.max_refund_usd:
+                        logger.warning(
+                            "Refund of $%.2f exceeds automated policy threshold of $%.2f. Intercepting.",
+                            amount,
+                            self.max_refund_usd,
+                        )
+                        note = (
+                            f"\n\n*Note: Credit adjustments exceeding ${self.max_refund_usd:.2f} "
+                            "require manual verification by our billing operations supervisor.*"
+                        )
+                        if note not in safe_reply:
+                            safe_reply += note
+                        if "REFUND_CAP_EXCEEDED" not in reasons:
+                            reasons.append("REFUND_CAP_EXCEEDED")
+                        violation = True
+                except (ValueError, IndexError):
+                    pass
 
         # Check 3: Clean internal action plan
         safe_plan: List[str] = []
