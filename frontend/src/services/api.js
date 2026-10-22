@@ -78,6 +78,10 @@ export const fetchSystemConfig = async () => {
   return apiClient.get('/api/v1/config');
 };
 
+export const fetchSystemMetrics = async () => {
+  return apiClient.get('/api/v1/metrics');
+};
+
 export const submitTicketTriage = async (ticketData) => {
   return apiClient.post('/api/v1/tickets/triage', ticketData);
 };

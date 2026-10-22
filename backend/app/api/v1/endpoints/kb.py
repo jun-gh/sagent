@@ -1,8 +1,8 @@
 import logging
-from typing import List, Dict, Any, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text
 
 from app.core.database import get_db_session
 from app.models.knowledge import ContextChunk
@@ -12,8 +12,8 @@ from app.schemas.knowledge import (
     KnowledgeChunkCreate,
     KnowledgeChunkRead,
 )
-from app.services.rag.hybrid_search import HybridSearchService
 from app.services.ai.gemini_client import GeminiClient
+from app.services.rag.hybrid_search import HybridSearchService
 
 logger = logging.getLogger("sagent.kb")
 router = APIRouter()
@@ -21,11 +21,11 @@ router = APIRouter()
 
 @router.get(
     "/kb",
-    response_model=List[KnowledgeChunkRead],
+    response_model=list[KnowledgeChunkRead],
     summary="List all knowledge runbooks in the database",
 )
 async def list_knowledge_chunks(
-    category: Optional[str] = None,
+    category: str | None = None,
     session: AsyncSession = Depends(get_db_session),
 ):
     """Retrieves all indexed runbooks currently stored in the knowledge base."""
@@ -105,7 +105,7 @@ async def delete_knowledge_chunk(
 
 @router.post(
     "/kb/search",
-    response_model=List[HybridSearchResult],
+    response_model=list[HybridSearchResult],
     summary="Direct test endpoint for Hybrid RAG search",
 )
 async def search_kb(

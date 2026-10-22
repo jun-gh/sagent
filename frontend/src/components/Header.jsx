@@ -1,7 +1,7 @@
 import React from 'react';
-import { RefreshCw, Sparkles, Sun, Moon } from 'lucide-react';
+import { RefreshCw, Sun, Moon, Activity } from 'lucide-react';
 
-export default function Header({ config = {}, isLoading, onRefresh, theme = 'dark', onToggleTheme }) {
+export default function Header({ config = {}, isLoading, onRefresh, theme = 'dark', onToggleTheme, onOpenTelemetry }) {
 
   return (
     <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 backdrop-blur-md sticky top-0 z-40 transition-colors duration-200">
@@ -19,25 +19,25 @@ export default function Header({ config = {}, isLoading, onRefresh, theme = 'dar
           <div>
             <div className="flex items-center space-x-2">
               <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">Sagent</span>
-              <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
-                Phase 1
-              </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Autonomous Ticket Triage & Hybrid RAG</p>
           </div>
         </div>
 
-        {/* Active Model Indicator, Theme Toggle & Refresh */}
+        {/* Telemetry, Theme Toggle & Refresh */}
         <div className="flex items-center space-x-2 sm:space-x-3">
-          
-          {/* Active Model Indicator (Fetched from GET /api/v1/config) */}
-          <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 px-3 py-1.5 rounded-lg text-xs shadow-inner">
-            <Sparkles className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
-            <span className="text-slate-500 dark:text-slate-400">Model:</span>
-            <span className="font-mono font-medium text-sky-600 dark:text-sky-300">
-              {config.gemini_model || 'Detecting...'}
-            </span>
-          </div>
+
+          {/* Telemetry Modal Button */}
+          {onOpenTelemetry && (
+            <button
+              onClick={onOpenTelemetry}
+              type="button"
+              title="View live operational telemetry & system health"
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 transition border border-slate-200 dark:border-transparent dark:hover:border-slate-700 text-xs font-medium"
+            >
+              <Activity className="w-4 h-4 text-sky-500" />
+              <span className="hidden sm:inline">Telemetry</span>
+            </button>
+          )}
 
           {/* Theme Toggle Button */}
           <button

@@ -28,16 +28,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
-          pip install ruff pytest pytest-asyncio
+          pip install ruff pytest pytest-asyncio aiosqlite
 
       - name: Run Ruff Linter
         run: |
-          ruff check backend/app
+          ruff check backend/app --config ruff.toml
 
       - name: Run Pytest Suite
         env:
           GEMINI_API_KEY: ""
-          GEMINI_MODEL: gemini-2.5-flash
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.8-flash' }}
           DATABASE_URL: sqlite+aiosqlite:///./test.db
         run: |
           cd backend && pytest -v

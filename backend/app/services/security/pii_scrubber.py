@@ -1,6 +1,6 @@
-import re
 import logging
-from typing import List, Tuple, Dict, Any, Optional
+import re
+from typing import Any
 
 from .security_types import PIIItem, PIITokenMap, SanitizedPayload
 
@@ -31,7 +31,7 @@ class PIIScrubber:
     """
 
     # Pre-compiled high-performance regex patterns
-    PATTERNS: List[Tuple[str, re.Pattern, Optional[Any]]] = [
+    PATTERNS: list[tuple[str, re.Pattern, Any | None]] = [
         # 1. Private Keys
         (
             "PRIVATE_KEY",
@@ -90,7 +90,7 @@ class PIIScrubber:
         # 9. Social Security Numbers (US SSN)
         (
             "SSN",
-            re.compile(r"\b(?!000|666|9\d{2})(\d{3})[- ](?!00)(\d{2})[- ](?!0000)(\d{4})\b"),
+            re.compile(r"\b(\d{3})[- ](\d{2})[- ](\d{4})\b"),
             None,
         ),
         # 10. Credit Cards (Luhn verified)
@@ -99,13 +99,19 @@ class PIIScrubber:
             re.compile(r"\b(?:\d[ -]*?){13,19}\b"),
             luhn_checksum_valid,
         ),
-        # 11. Email addresses
+        # 11. Database Connection Strings with Credentials
+        (
+            "DB_URI",
+            re.compile(r"postgres(?:ql)?://[^\s]+:[^\s]+@[^\s]+", re.IGNORECASE),
+            None,
+        ),
+        # 12. Email addresses
         (
             "EMAIL",
             re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),
             None,
         ),
-        # 12. Phone numbers (standard North American & international formats)
+        # 13. Phone numbers (standard North American & international formats)
         (
             "PHONE",
             re.compile(
@@ -130,9 +136,9 @@ class PIIScrubber:
             )
 
         sanitized = text
-        token_items: List[PIIItem] = []
+        token_items: list[PIIItem] = []
         entities_found_set = set()
-        entity_counters: Dict[str, int] = {}
+        entity_counters: dict[str, int] = {}
 
         for entity_type, regex, validator in self.PATTERNS:
             # Find all matches

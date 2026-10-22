@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Send, Zap, Bug, CreditCard, KeyRound, AlertOctagon, AlertTriangle, PlusCircle, Shield, ShieldAlert } from 'lucide-react';
+import { Send, Zap, Bug, CreditCard, KeyRound, AlertOctagon, AlertTriangle, PlusCircle, Shield, ShieldAlert, ChevronDown, ChevronUp } from 'lucide-react';
 
 const PRESET_SCENARIOS = [
   {
@@ -91,6 +91,7 @@ export default function TicketForm({
   onNewSession,
 }) {
   const isQuotaReached = ticketCount >= maxTickets;
+  const [showPresets, setShowPresets] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -161,38 +162,50 @@ export default function TicketForm({
           <p className="text-xs text-slate-500 dark:text-slate-400">Submit a ticket for autonomous multi-agent triage</p>
         </div>
 
-        {/* Quick Presets */}
-        <div className="flex items-center space-x-1.5 text-xs text-slate-500 dark:text-slate-400">
+        {/* Quick Presets Toggle Button */}
+        <button
+          type="button"
+          onClick={() => setShowPresets((prev) => !prev)}
+          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition shadow-sm"
+          title={showPresets ? 'Hide test presets' : 'Show quick test presets'}
+        >
           <Zap className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-          <span className="hidden sm:inline">Presets:</span>
-        </div>
+          <span>Presets</span>
+          {showPresets ? (
+            <ChevronUp className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+          )}
+        </button>
       </div>
 
-      {/* Preset Buttons */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
-        {PRESET_SCENARIOS.map((p) => {
-          const Icon = p.icon;
-          return (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => applyPreset(p)}
-              disabled={isTriaging || isQuotaReached}
-              className="text-left p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 hover:bg-slate-100 dark:bg-slate-950/40 dark:hover:bg-slate-800/60 hover:border-slate-300 dark:hover:border-slate-700 transition group flex flex-col justify-between disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <div className="flex items-center space-x-2 mb-1">
-                <Icon className="w-4 h-4 text-slate-400 group-hover:text-sky-500 dark:group-hover:text-sky-400 transition" />
-                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 group-hover:text-slate-950 dark:group-hover:text-white truncate">
-                  {p.label}
+      {/* Preset Buttons Collapsible Container */}
+      {showPresets && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5 animate-in fade-in duration-150">
+          {PRESET_SCENARIOS.map((p) => {
+            const Icon = p.icon;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => applyPreset(p)}
+                disabled={isTriaging || isQuotaReached}
+                className="text-left p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 hover:bg-slate-100 dark:bg-slate-950/40 dark:hover:bg-slate-800/60 hover:border-slate-300 dark:hover:border-slate-700 transition group flex flex-col justify-between disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <div className="flex items-center space-x-2 mb-1">
+                  <Icon className="w-4 h-4 text-slate-400 group-hover:text-sky-500 dark:group-hover:text-sky-400 transition" />
+                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 group-hover:text-slate-950 dark:group-hover:text-white truncate">
+                    {p.label}
+                  </span>
+                </div>
+                <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border inline-block w-fit ${p.badgeColor}`}>
+                  {p.badge}
                 </span>
-              </div>
-              <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border inline-block w-fit ${p.badgeColor}`}>
-                {p.badge}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Main Ingestion Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -247,20 +260,7 @@ export default function TicketForm({
           />
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
-          {/* Rate limit simulation toggle */}
-          <label className="flex items-center space-x-2.5 text-xs text-slate-500 dark:text-slate-400 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              name="simulate_rate_limit"
-              checked={formData.simulate_rate_limit}
-              onChange={handleChange}
-              disabled={isTriaging || isQuotaReached}
-              className="rounded bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 text-sky-500 focus:ring-sky-500/20 w-4 h-4 disabled:opacity-50"
-            />
-            <span>Simulate Gemini HTTP 429 Rate Limit (Tests 3x backoff &amp; Error UI)</span>
-          </label>
-
+        <div className="flex items-center justify-end pt-1">
           {/* Submit Action */}
           <button
             type="submit"
@@ -280,7 +280,7 @@ export default function TicketForm({
             ) : (
               <>
                 <Send className="w-4 h-4" />
-                <span className="text-sm">Run Autonomous Triage</span>
+                <span className="text-sm">Run Ticket Triage</span>
               </>
             )}
           </button>

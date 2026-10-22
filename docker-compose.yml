@@ -30,7 +30,7 @@ services:
         condition: service_healthy
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.8-flash}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-gemini-embedding-001}
       - DATABASE_URL=postgresql+asyncpg://postgres:postgrespassword@db:5432/sagent
       - APP_ENV=development
@@ -45,6 +45,7 @@ services:
     volumes:
       - ./backend/app:/app/app
       - ./backend/tests:/app/tests
+      - ./backend/scripts:/app/scripts
 
   # 3. React 18 + Vite + Tailwind CSS Dashboard
   frontend:

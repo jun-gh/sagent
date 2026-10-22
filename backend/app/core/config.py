@@ -1,6 +1,6 @@
 import json
 from functools import lru_cache
-from typing import List, Union
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     
     # Gemini AI Configuration
     GEMINI_API_KEY: str = Field(default="", description="Google Gemini API Key")
-    GEMINI_MODEL: str = Field(default="gemini-2.5-flash", description="Active Gemini model for triage and reasoning")
+    GEMINI_MODEL: str = Field(default="gemini-3.8-flash", description="Active Gemini model for triage and reasoning")
     EMBEDDING_MODEL: str = Field(default="gemini-embedding-001", description="Model used for text embeddings")
     
     # Database Configuration
@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     )
     
     # CORS
-    CORS_ORIGINS: Union[List[str], str] = ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"]
+    CORS_ORIGINS: list[str] | str = ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"]
 
     # AI Resilience & Retry Parameters
     MAX_GEMINI_RETRIES: int = 3
@@ -47,9 +47,42 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def sanitize_database_url(cls, v: str) -> str:
+        if not v or not isinstance(v, str):
+            return v
+        url_str = v.strip()
+        # Convert standard postgres:// or postgresql:// to postgresql+asyncpg://
+        if url_str.startswith("postgres://"):
+            url_str = "postgresql+asyncpg://" + url_str[len("postgres://"):]
+        elif url_str.startswith("postgresql://") and not url_str.startswith("postgresql+"):
+            url_str = "postgresql+asyncpg://" + url_str[len("postgresql://"):]
+
+        # asyncpg does not accept sslmode or channel_binding query params
+        if "asyncpg" in url_str:
+            try:
+                from sqlalchemy.engine.url import make_url
+                url = make_url(url_str)
+                query = dict(url.query)
+                changed = False
+                if "sslmode" in query:
+                    mode = query.pop("sslmode")
+                    if "ssl" not in query:
+                        query["ssl"] = mode
+                    changed = True
+                if "channel_binding" in query:
+                    query.pop("channel_binding")
+                    changed = True
+                if changed:
+                    url_str = url._replace(query=query).render_as_string(hide_password=False)
+            except Exception:
+                pass
+        return url_str
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+    def assemble_cors_origins(cls, v: str | list[str]) -> list[str]:
         if isinstance(v, str):
             try:
                 parsed = json.loads(v)
@@ -67,7 +100,7 @@ class Settings(BaseSettings):
     )
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     """
     Returns cached Settings instance.

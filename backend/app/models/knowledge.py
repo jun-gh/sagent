@@ -1,8 +1,10 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, JSON, Index
-from sqlalchemy.dialects.postgresql import TSVECTOR
+
 from pgvector.sqlalchemy import Vector
+from sqlalchemy import JSON, Column, DateTime, Index, String, Text
+from sqlalchemy.dialects.postgresql import TSVECTOR
+
 from app.core.database import Base
 
 

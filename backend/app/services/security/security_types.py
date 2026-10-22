@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Dict, Any, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -19,7 +19,7 @@ class PIIItem(BaseModel):
 
 
 class PIITokenMap(BaseModel):
-    items: List[PIIItem] = Field(default_factory=list)
+    items: list[PIIItem] = Field(default_factory=list)
 
     @property
     def count(self) -> int:
@@ -42,7 +42,7 @@ class SanitizedPayload(BaseModel):
     sanitized_text: str
     original_length: int
     redactions_count: int
-    entities_found: List[str] = Field(default_factory=list)
+    entities_found: list[str] = Field(default_factory=list)
     token_map: PIITokenMap = Field(default_factory=PIITokenMap)
 
 
@@ -51,8 +51,8 @@ class SecurityEvaluation(BaseModel):
     risk_score: float = 0.0
     pii_detected: bool = False
     pii_count: int = 0
-    entities_found: List[str] = Field(default_factory=list)
+    entities_found: list[str] = Field(default_factory=list)
     injection_detected: bool = False
-    injection_reasons: List[str] = Field(default_factory=list)
+    injection_reasons: list[str] = Field(default_factory=list)
     sanitized_text: str
     action_taken: str = "PROCEED"

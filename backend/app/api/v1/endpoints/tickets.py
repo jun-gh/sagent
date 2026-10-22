@@ -1,19 +1,19 @@
 from datetime import datetime, timedelta
-from typing import List, Optional
+
 from fastapi import APIRouter, Depends, Header, HTTPException, status
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete
 
 from app.core.config import get_settings
 from app.core.database import get_db_session
 from app.core.errors import SessionLimitReachedException
-from app.core.security import verify_rate_limit, verify_api_key
-from app.models.ticket import Ticket
+from app.core.security import verify_api_key, verify_rate_limit
 from app.models.audit import AuditLog
+from app.models.ticket import Ticket
 from app.schemas.ticket import (
+    TicketRead,
     TicketTriageRequest,
     TicketTriageResponse,
-    TicketRead,
 )
 from app.services.agents.orchestrator import TriageOrchestrator
 
@@ -42,7 +42,7 @@ async def cleanup_expired_tickets(session: AsyncSession, expiry_days: int) -> No
 )
 async def triage_ticket(
     request: TicketTriageRequest,
-    x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
+    x_session_id: str | None = Header(None, alias="X-Session-ID"),
     session: AsyncSession = Depends(get_db_session),
 ):
     """
@@ -83,13 +83,13 @@ async def triage_ticket(
 
 @router.get(
     "/tickets",
-    response_model=List[TicketRead],
+    response_model=list[TicketRead],
     summary="List all triaged tickets for the current session",
 )
 async def list_tickets(
     limit: int = 50,
     offset: int = 0,
-    x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
+    x_session_id: str | None = Header(None, alias="X-Session-ID"),
     session: AsyncSession = Depends(get_db_session),
 ):
     """Retrieves session-isolated historical tickets sorted by recent creation."""
@@ -124,7 +124,7 @@ async def list_tickets(
 )
 async def get_ticket(
     ticket_id: str,
-    x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
+    x_session_id: str | None = Header(None, alias="X-Session-ID"),
     session: AsyncSession = Depends(get_db_session),
 ):
     stmt = select(Ticket).where(Ticket.id == ticket_id)

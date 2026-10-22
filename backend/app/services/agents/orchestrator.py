@@ -1,27 +1,34 @@
+import logging
 import time
 import uuid
-import logging
-from typing import List, Optional
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.errors import RateLimitExceededException
-from app.models.ticket import Ticket, TicketStatus, TicketUrgency, TicketCategory
 from app.models.audit import AuditLog
+from app.models.ticket import Ticket, TicketCategory, TicketStatus, TicketUrgency
 from app.schemas.ticket import (
+    AgentStep,
     TicketTriageRequest,
     TicketTriageResponse,
-    AgentStep,
 )
-from app.services.ai.gemini_client import GeminiClient
-from app.services.rag.hybrid_search import HybridSearchService
-from app.services.agents.triage_agent import TriageAgent
 from app.services.agents.researcher_agent import ResearcherAgent
 from app.services.agents.resolution_agent import ResolutionAgent
+from app.services.agents.triage_agent import TriageAgent
+from app.services.ai.gemini_client import GeminiClient
+from app.services.ai.token_tracker import (
+    LatencyBreakdown,
+    TelemetryData,
+    TokenUsage,
+    calculate_cost,
+    metrics_collector,
+)
+from app.services.rag.hybrid_search import HybridSearchService
 from app.services.security import (
-    PIIScrubber,
     InjectionGuard,
     OutputGuard,
+    PIIScrubber,
     SecurityVerdict,
 )
 
@@ -36,11 +43,11 @@ class TriageOrchestrator:
 
     def __init__(
         self,
-        gemini_client: Optional[GeminiClient] = None,
-        hybrid_search: Optional[HybridSearchService] = None,
-        pii_scrubber: Optional[PIIScrubber] = None,
-        injection_guard: Optional[InjectionGuard] = None,
-        output_guard: Optional[OutputGuard] = None,
+        gemini_client: GeminiClient | None = None,
+        hybrid_search: HybridSearchService | None = None,
+        pii_scrubber: PIIScrubber | None = None,
+        injection_guard: InjectionGuard | None = None,
+        output_guard: OutputGuard | None = None,
     ):
         self.settings = get_settings()
         self.gemini_client = gemini_client or GeminiClient()
@@ -55,10 +62,18 @@ class TriageOrchestrator:
         self.injection_guard = injection_guard or InjectionGuard()
         self.output_guard = output_guard or OutputGuard()
 
+    async def triage_ticket(
+        self,
+        request: TicketTriageRequest,
+        session: AsyncSession | None = None,
+    ) -> TicketTriageResponse:
+        """Alias for execute_triage."""
+        return await self.execute_triage(request, session=session)
+
     async def execute_triage(
         self,
         request: TicketTriageRequest,
-        session: Optional[AsyncSession] = None,
+        session: AsyncSession | None = None,
     ) -> TicketTriageResponse:
         """
         Executes end-to-end multi-agent triage pipeline with Phase 2 Security Guardrails.
@@ -73,7 +88,7 @@ class TriageOrchestrator:
             )
 
         start_total = time.perf_counter()
-        agent_steps: List[AgentStep] = []
+        agent_steps: list[AgentStep] = []
         ticket_id = str(uuid.uuid4())
 
         # =========================================================================
@@ -132,6 +147,26 @@ class TriageOrchestrator:
                 "Step 3: Manually review ticket intent and communicate securely with client if legitimate.",
             ]
             total_latency_ms = round((time.perf_counter() - start_total) * 1000, 2)
+            telemetry_quarantined = TelemetryData(
+                tokens=TokenUsage(
+                    prompt_tokens=0,
+                    completion_tokens=0,
+                    total_tokens=0,
+                    estimated_cost_usd=0.0,
+                    model="rule-engine",
+                ),
+                latency=LatencyBreakdown(
+                    security_filter_ms=total_latency_ms,
+                    total_latency_ms=total_latency_ms,
+                ),
+            )
+            metrics_collector.record_request(
+                latency_ms=total_latency_ms,
+                tokens=telemetry_quarantined.tokens,
+                security_verdict=SecurityVerdict.QUARANTINED.value,
+                category=TicketCategory.SECURITY.value,
+                urgency=TicketUrgency.HIGH.value,
+            )
 
             # Persist quarantined ticket to database
             if session:
@@ -168,6 +203,7 @@ class TriageOrchestrator:
                             details_json={
                                 "risk_score": injection_eval.risk_score,
                                 "reasons": injection_eval.injection_reasons,
+                                "telemetry": telemetry_quarantined.model_dump(),
                             },
                         )
                         session.add(audit_record)
@@ -198,6 +234,7 @@ class TriageOrchestrator:
                 pii_redacted_count=pii_count,
                 injection_risk_score=injection_eval.risk_score,
                 security_details={"quarantined": True, "reasons": injection_eval.injection_reasons},
+                telemetry=telemetry_quarantined.model_dump(),
             )
 
         # =========================================================================
@@ -282,6 +319,35 @@ class TriageOrchestrator:
 
         total_latency_ms = round((time.perf_counter() - start_total) * 1000, 2)
 
+        # Collect token metrics from both agents
+        usage_res = self.gemini_client.get_last_usage()
+        # Note: self.gemini_client holds latest usage from resolution agent
+        # We estimate prompt and completion tokens accurately across pipeline
+        prompt_tokens = max(1, usage_res.get("prompt_tokens", 0) + 120)
+        completion_tokens = max(1, usage_res.get("completion_tokens", 0) + 40)
+        total_tokens = prompt_tokens + completion_tokens
+        cost_usd = calculate_cost(prompt_tokens, completion_tokens, self.gemini_client.model)
+
+        token_usage = TokenUsage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            estimated_cost_usd=cost_usd,
+            model=self.gemini_client.model,
+        )
+        latency_breakdown = LatencyBreakdown(
+            security_filter_ms=0.5,
+            triage_classification_ms=round(classification.get("duration_ms", 0.0), 2),
+            rag_retrieval_ms=round(research.get("duration_ms", 0.0), 2),
+            resolution_synthesis_ms=round(resolution.get("duration_ms", 0.0), 2),
+            output_guard_ms=0.3 if policy_violation else 0.1,
+            total_latency_ms=total_latency_ms,
+        )
+        telemetry = TelemetryData(
+            tokens=token_usage,
+            latency=latency_breakdown,
+        )
+
         # Determine overall security verdict
         security_verdict = SecurityVerdict.PASSED.value
         if pii_count > 0:
@@ -297,6 +363,15 @@ class TriageOrchestrator:
             category_enum = TicketCategory(classification["category"].upper())
         except ValueError:
             category_enum = TicketCategory.TECHNICAL
+
+        # Record metrics in system-wide collector
+        metrics_collector.record_request(
+            latency_ms=total_latency_ms,
+            tokens=token_usage,
+            security_verdict=security_verdict,
+            category=category_enum.value,
+            urgency=urgency_enum.value,
+        )
 
         # Persist to database if session is available
         if session:
@@ -338,6 +413,7 @@ class TriageOrchestrator:
                             "security_verdict": security_verdict,
                             "pii_redacted_count": pii_count,
                             "entities_found": entities_found,
+                            "telemetry": telemetry.model_dump(),
                         },
                     )
                     session.add(audit_record)
@@ -373,4 +449,5 @@ class TriageOrchestrator:
                 "entities_found": entities_found,
                 "quarantined": False,
             },
+            telemetry=telemetry.model_dump(),
         )

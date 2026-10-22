@@ -17,6 +17,10 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
+  Zap,
+  Share2,
+  MessageSquare,
+  CheckSquare,
 } from 'lucide-react';
 
 const URGENCY_CONFIG = {
@@ -86,6 +90,8 @@ const formatRelevancePercentage = (rawRrfScore) => {
 
 export default function TriageResult({ result }) {
   const [copiedReply, setCopiedReply] = useState(false);
+  const [copiedSlack, setCopiedSlack] = useState(false);
+  const [copiedJira, setCopiedJira] = useState(false);
   const [copiedModalUrl, setCopiedModalUrl] = useState(false);
   const [copiedModalText, setCopiedModalText] = useState(false);
   const [cardCopiedIdx, setCardCopiedIdx] = useState(null);
@@ -97,9 +103,72 @@ export default function TriageResult({ result }) {
   const urgency = URGENCY_CONFIG[result.urgency] || URGENCY_CONFIG.MEDIUM;
 
   const handleCopyReply = () => {
-    navigator.clipboard.writeText(result.suggested_reply);
+    navigator.clipboard.writeText(result.suggested_reply || '');
     setCopiedReply(true);
     setTimeout(() => setCopiedReply(false), 2000);
+  };
+
+  const handleCopySlackBrief = () => {
+    const actionSteps = (result.internal_action_plan || [])
+      .map((s, i) => `  ${i + 1}. ${s}`)
+      .join('\n');
+    const citations = (result.grounding_citations || [])
+      .map((c) => `  • ${c.document_title}`)
+      .join('\n');
+
+    const slackText = [
+      `🚨 *INCIDENT DISPATCH BRIEF* | *Urgency:* ${result.urgency} | *Category:* ${result.category}`,
+      `*Ticket:* \`${(result.ticket_id || '').slice(0, 8)}\` - *${result.title}*`,
+      `*Customer:* ${result.customer_tier?.toUpperCase() || 'STANDARD'} (${result.customer_email || 'N/A'})`,
+      `*Confidence:* ${(result.confidence_score * 100).toFixed(0)}% | *Security:* ${result.security_verdict || 'PASSED'}`,
+      ``,
+      `📋 *REMEDIATION CHECKLIST:*`,
+      actionSteps || '  (None specified)',
+      ``,
+      `📚 *GROUNDING RUNBOOKS:*`,
+      citations || '  (None retrieved)',
+      ``,
+      `💬 *RECOMMENDED CUSTOMER REPLY:*`,
+      `> ${(result.suggested_reply || '').replace(/\n/g, '\n> ')}`,
+    ].join('\n');
+
+    navigator.clipboard.writeText(slackText);
+    setCopiedSlack(true);
+    setTimeout(() => setCopiedSlack(false), 2000);
+  };
+
+  const handleCopyJiraBrief = () => {
+    const actionSteps = (result.internal_action_plan || [])
+      .map((s) => `* [ ] ${s}`)
+      .join('\n');
+    const citations = (result.grounding_citations || [])
+      .map((c) => `* ${c.document_title} (Score: ${c.score ? c.score.toFixed(3) : 'N/A'})`)
+      .join('\n');
+
+    const jiraText = [
+      `h2. Incident Triage Summary`,
+      `* *Urgency:* ${result.urgency}`,
+      `* *Category:* ${result.category}`,
+      `* *Customer Tier:* ${result.customer_tier || 'standard'}`,
+      `* *Customer Email:* ${result.customer_email || 'N/A'}`,
+      `* *AI Confidence:* ${(result.confidence_score * 100).toFixed(0)}%`,
+      `* *Security Verdict:* ${result.security_verdict || 'PASSED'}`,
+      ``,
+      `h3. Remediation Action Checklist`,
+      actionSteps || 'None',
+      ``,
+      `h3. Knowledge Base Grounding Runbooks`,
+      citations || 'None',
+      ``,
+      `h3. Proposed Customer Resolution`,
+      `{quote}`,
+      `${result.suggested_reply || ''}`,
+      `{quote}`,
+    ].join('\n');
+
+    navigator.clipboard.writeText(jiraText);
+    setCopiedJira(true);
+    setTimeout(() => setCopiedJira(false), 2000);
   };
 
   const handleCopyModalUrl = (url) => {
@@ -170,6 +239,20 @@ export default function TriageResult({ result }) {
                 <span className="text-slate-700 dark:text-slate-200">{result.total_latency_ms.toFixed(0)}ms</span>
               </div>
             )}
+
+            {result.telemetry?.tokens && (
+              <div
+                className="flex items-center space-x-1 px-2 py-0.5 rounded-md bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/20 text-amber-700 dark:text-amber-300"
+                title={`Prompt Tokens: ${result.telemetry.tokens.prompt_tokens} | Completion Tokens: ${result.telemetry.tokens.completion_tokens}`}
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                <span>{result.telemetry.tokens.total_tokens} toks</span>
+                <span className="opacity-50">·</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  ${result.telemetry.tokens.estimated_cost_usd?.toFixed(4) || '0.0000'}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -222,6 +305,64 @@ export default function TriageResult({ result }) {
             )}
           </div>
         )}
+      </div>
+
+      {/* 1-Click Incident Dispatch & Export Hub */}
+      <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm dark:shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors duration-200">
+        <div className="flex items-center space-x-2.5">
+          <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+            <Share2 className="w-4 h-4" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center space-x-1.5">
+              <span>Incident Dispatch &amp; 1-Click Hand-Off</span>
+            </h4>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Export pre-formatted triage briefs directly to team communication channels
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center flex-wrap gap-2">
+          {/* Copy Customer Reply */}
+          <button
+            onClick={handleCopyReply}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition shadow-sm ${
+              copiedReply
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+            }`}
+          >
+            {copiedReply ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copiedReply ? 'Copied Reply!' : 'Copy Reply'}</span>
+          </button>
+
+          {/* Copy Slack Brief */}
+          <button
+            onClick={handleCopySlackBrief}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition shadow-sm ${
+              copiedSlack
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+            }`}
+          >
+            {copiedSlack ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <MessageSquare className="w-3.5 h-3.5 text-sky-500" />}
+            <span>{copiedSlack ? 'Copied Slack Brief!' : 'Copy Slack Brief'}</span>
+          </button>
+
+          {/* Copy Jira Markdown */}
+          <button
+            onClick={handleCopyJiraBrief}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition shadow-sm ${
+              copiedJira
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+            }`}
+          >
+            {copiedJira ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <CheckSquare className="w-3.5 h-3.5 text-indigo-500" />}
+            <span>{copiedJira ? 'Copied Jira Issue!' : 'Copy Jira Issue'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Two-Column Layout */}
@@ -297,7 +438,7 @@ export default function TriageResult({ result }) {
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2">
                 <BookOpen className="w-4 h-4 text-sky-500 dark:text-sky-400" />
-                <span>Grounding Runbooks (Hybrid RAG)</span>
+                <span>Knowledge Base</span>
               </h3>
               <span className="text-[10px] text-slate-400 dark:text-slate-400">Click card for preview</span>
             </div>

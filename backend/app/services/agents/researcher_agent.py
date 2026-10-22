@@ -1,6 +1,8 @@
 import time
-from typing import List, Dict, Any, Optional
+from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.schemas.ticket import Citation
 from app.services.rag.hybrid_search import HybridSearchService
 
@@ -17,17 +19,17 @@ class ResearcherAgent:
     async def retrieve_grounding(
         self,
         session: AsyncSession,
-        search_queries: List[str],
-        category: Optional[str] = None,
+        search_queries: list[str],
+        category: str | None = None,
         top_k: int = 4,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Executes hybrid searches across all suggested queries and compiles unique citations.
         """
         start = time.perf_counter()
         seen_ids = set()
-        citations: List[Citation] = []
-        raw_chunks: List[Dict[str, Any]] = []
+        citations: list[Citation] = []
+        raw_chunks: list[dict[str, Any]] = []
 
         # Search with the primary queries
         for query in search_queries[:3]:

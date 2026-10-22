@@ -1,20 +1,21 @@
 import logging
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.database import init_db
 from app.core.errors import (
-    SagentException,
-    ErrorEnvelope,
     ErrorDetail,
-    sagent_exception_handler,
+    ErrorEnvelope,
+    SagentException,
     generic_exception_handler,
+    sagent_exception_handler,
 )
-from app.api.v1.router import api_router
 
 # Configure logging
 logging.basicConfig(
@@ -38,9 +39,10 @@ async def lifespan(app: FastAPI):
     if db_connected:
         logger.info("Database connection verified and initialized.")
         try:
+            from sqlalchemy import func, select, text
+
             from app.core.database import AsyncSessionLocal
             from app.models.knowledge import ContextChunk
-            from sqlalchemy import select, func, text
             async with AsyncSessionLocal() as session:
                 # Update any existing records containing placeholder internal domains
                 updates = [

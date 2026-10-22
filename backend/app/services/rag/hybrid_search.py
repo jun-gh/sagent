@@ -1,8 +1,10 @@
 import logging
 import math
-from typing import List, Optional, Tuple, Dict, Any
-from sqlalchemy import select, func, text
+from typing import Any
+
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.knowledge import ContextChunk
 from app.schemas.knowledge import HybridSearchResult
 from app.services.ai.gemini_client import GeminiClient
@@ -10,7 +12,7 @@ from app.services.ai.gemini_client import GeminiClient
 logger = logging.getLogger("sagent.rag")
 
 
-def sanitize_url(url: Optional[str], category: str = "", title: str = "") -> Optional[str]:
+def sanitize_url(url: str | None, category: str = "", title: str = "") -> str | None:
     """Ensures runbook source URL is a real public documentation link."""
     if not url or "internal" in url:
         t = (title or "").lower()
@@ -36,19 +38,19 @@ class HybridSearchService:
     3. Reciprocal Rank Fusion (RRF) combining both signals
     """
 
-    def __init__(self, gemini_client: Optional[GeminiClient] = None):
+    def __init__(self, gemini_client: GeminiClient | None = None):
         self.gemini_client = gemini_client or GeminiClient()
 
     async def search(
         self,
-        session: Optional[AsyncSession],
+        session: AsyncSession | None,
         query_text: str,
-        category: Optional[str] = None,
+        category: str | None = None,
         top_k: int = 5,
         dense_weight: float = 0.6,
         keyword_weight: float = 0.4,
         rrf_k: int = 60,
-    ) -> List[HybridSearchResult]:
+    ) -> list[HybridSearchResult]:
         """
         Executes hybrid search over knowledge base context chunks.
         """
@@ -56,7 +58,7 @@ class HybridSearchService:
             return self._default_static_chunks(query_text, category, top_k)
 
         # Step 1: Generate query embedding
-        query_embedding: Optional[List[float]] = None
+        query_embedding: list[float] | None = None
         try:
             query_embedding = await self.gemini_client.get_embedding(query_text)
         except Exception as e:
@@ -93,13 +95,13 @@ class HybridSearchService:
         self,
         session: AsyncSession,
         query_text: str,
-        query_embedding: Optional[List[float]],
-        category: Optional[str],
+        query_embedding: list[float] | None,
+        category: str | None,
         top_k: int,
         dense_weight: float,
         keyword_weight: float,
         rrf_k: int,
-    ) -> List[HybridSearchResult]:
+    ) -> list[HybridSearchResult]:
         """
         Executes PostgreSQL query with vector similarity and full-text search.
         """
@@ -166,14 +168,14 @@ class HybridSearchService:
             LIMIT {top_k};
             """
 
-        params: Dict[str, Any] = {"query_val": clean_query}
+        params: dict[str, Any] = {"query_val": clean_query}
         if category:
             params["category_val"] = category
 
         result = await session.execute(text(sql), params)
         rows = result.fetchall()
 
-        results: List[HybridSearchResult] = []
+        results: list[HybridSearchResult] = []
         for r in rows:
             results.append(
                 HybridSearchResult(
@@ -191,7 +193,7 @@ class HybridSearchService:
         return results
 
     @staticmethod
-    def _prune_relative_tail(results: List[HybridSearchResult]) -> List[HybridSearchResult]:
+    def _prune_relative_tail(results: list[HybridSearchResult]) -> list[HybridSearchResult]:
         """
         Relative Score Pruning:
         In hybrid RRF search, when a dominant winner exists (e.g. matching both dense
@@ -230,12 +232,12 @@ class HybridSearchService:
 
     async def _search_in_memory_fallback(
         self,
-        session: Optional[AsyncSession],
+        session: AsyncSession | None,
         query_text: str,
-        query_embedding: Optional[List[float]],
-        category: Optional[str],
+        query_embedding: list[float] | None,
+        category: str | None,
         top_k: int,
-    ) -> List[HybridSearchResult]:
+    ) -> list[HybridSearchResult]:
         """
         Pure Python in-memory search fallback with relevance thresholding.
         """
@@ -255,7 +257,7 @@ class HybridSearchService:
         if not chunks:
             return self._default_static_chunks(query_text, category, top_k)
 
-        scored: List[Tuple[float, float, float, ContextChunk]] = []
+        scored: list[tuple[float, float, float, ContextChunk]] = []
         STOP_WORDS = {
             "policy", "guide", "runbook", "protocol", "how", "to", "for", "the",
             "in", "on", "and", "with", "a", "an", "of", "is", "at", "by", "from"
@@ -307,8 +309,8 @@ class HybridSearchService:
         ]
 
     def _default_static_chunks(
-        self, query_text: str, category: Optional[str], top_k: int
-    ) -> List[HybridSearchResult]:
+        self, query_text: str, category: str | None, top_k: int
+    ) -> list[HybridSearchResult]:
         """Pre-packaged enterprise runbook knowledge chunks for grounding."""
         catalog = [
             HybridSearchResult(
@@ -363,7 +365,7 @@ class HybridSearchService:
                     "When clients receive HTTP 429 Too Many Requests, evaluate current tier caps. "
                     "Standard tier: 60 RPM. Enterprise tier: 1000 RPM. If an Enterprise customer breaches rate limits "
                     "during a production migration, the On-Call Engineer can issue a 48-hour temporary quota override "
-                    "via the Admin Console."
+                    "via the Admin Console with exponential backoff."
                 ),
                 combined_score=0.84,
                 vector_score=0.86,
@@ -375,25 +377,77 @@ class HybridSearchService:
                 document_title="Organization RBAC Privileges & Member Invitation Failures",
                 category="AUTH",
                 content=(
-                    "If an invited team member receives 'Unauthorized 403' upon accepting an email invite, "
-                    "verify if domain restriction is enabled for the workspace. Workspaces configured with strict "
-                    "domain whitelist (e.g. @company.com) will reject invitations sent to personal email providers."
+                    "If an invited team member receives 'Unauthorized 403' or permission denied upon accessing role-gated pipelines, "
+                    "verify if domain restriction or RBAC policy audit revoked staging deployment permissions for the Developer role."
                 ),
                 combined_score=0.82,
                 vector_score=0.84,
                 keyword_score=0.79,
                 source_url="https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories",
             ),
+            HybridSearchResult(
+                id="kb-redis-06",
+                document_title="Redis Cache Eviction Spike, Memory Pressure & OOM Runbook",
+                category="TECHNICAL",
+                content=(
+                    "Redis memory usage exceeding 95% threshold triggers volatile-lru or allkeys-lru cache eviction spikes and OOM "
+                    "command not allowed errors under maxmemory-policy. Run redis-cli --bigkeys and memory doctor to identify large keys."
+                ),
+                combined_score=0.93,
+                vector_score=0.94,
+                keyword_score=0.90,
+                source_url="https://redis.io/docs/management/optimization/memory-optimization/",
+            ),
+            HybridSearchResult(
+                id="kb-k8s-07",
+                document_title="Kubernetes Pod CrashLoopBackOff & OOMKilled Exit Code 137 Runbook",
+                category="TECHNICAL",
+                content=(
+                    "Payment service checkout-worker pods crashing in CrashLoopBackOff with exit code 137 indicates the container "
+                    "exceeded cgroup memory limits and was terminated by Linux kernel OOMKilled. Inspect kubectl describe pod and increase limits."
+                ),
+                combined_score=0.94,
+                vector_score=0.95,
+                keyword_score=0.92,
+                source_url="https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/",
+            ),
+            HybridSearchResult(
+                id="kb-stripe-sig-08",
+                document_title="Stripe Payment Webhook Signature Mismatch & InvalidSignature Runbook",
+                category="BILLING",
+                content=(
+                    "When Stripe webhook verification fails with InvalidSignature or Webhook signature verification failed, "
+                    "the signing secret whsec_ differs between environments or the raw HTTP request body was mutated before signature verification."
+                ),
+                combined_score=0.92,
+                vector_score=0.93,
+                keyword_score=0.89,
+                source_url="https://docs.stripe.com/webhooks/signatures",
+            ),
+            HybridSearchResult(
+                id="kb-s3-09",
+                document_title="AWS S3 Bucket HTTP 403 Access Denied & IAM Policy Remediation",
+                category="TECHNICAL",
+                content=(
+                    "AWS S3 HTTP 403 AccessDenied during PutObject or bucket sync indicates the caller IAM role lacks s3:PutObject "
+                    "permissions or the bucket policy denies public uploads. Verify KMS key decrypt permissions and bucket ACLs."
+                ),
+                combined_score=0.91,
+                vector_score=0.92,
+                keyword_score=0.88,
+                source_url="https://docs.aws.amazon.com/AmazonS3/latest/userguide/troubleshoot-403-errors.html",
+            ),
         ]
 
-        query_lower = query_text.lower()
-        if "sso" in query_lower or "saml" in query_lower or "login" in query_lower or "cert" in query_lower:
-            return [catalog[0], catalog[4]][:top_k]
-        elif "bill" in query_lower or "charge" in query_lower or "refund" in query_lower or "invoice" in query_lower:
-            return [catalog[1]][:top_k]
-        elif "deadlock" in query_lower or "postgres" in query_lower or "database" in query_lower or "lock" in query_lower:
-            return [catalog[2], catalog[3]][:top_k]
-        elif "429" in query_lower or "rate" in query_lower or "quota" in query_lower:
-            return [catalog[3]][:top_k]
+        query_words = set(query_text.lower().replace("'", "").replace('"', '').split())
+        scored_catalog: list[tuple[int, HybridSearchResult]] = []
+        for chunk in catalog:
+            chunk_text = f"{chunk.document_title} {chunk.content}".lower()
+            overlap = sum(1 for w in query_words if len(w) > 2 and w in chunk_text)
+            cat_bonus = 2 if category and chunk.category == category else 0
+            scored_catalog.append((overlap + cat_bonus, chunk))
 
-        return catalog[:top_k]
+        scored_catalog.sort(key=lambda x: x[0], reverse=True)
+        relevant_chunks = [c for score, c in scored_catalog if score > 0]
+        return (relevant_chunks or catalog)[:top_k]
+

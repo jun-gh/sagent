@@ -39,13 +39,26 @@ def test_output_guard_clean_reply():
     assert safe_reply == clean_reply
 
 
-def test_output_guard_custom_refund_cap():
-    strict_guard = OutputGuard(max_refund_usd=50.0)
-    reply = "We have issued a credit of $75.00 to your account."
-    safe_reply, safe_plan, violation, reasons = strict_guard.sanitize_output(
-        customer_reply=reply,
-        internal_action_plan=["Credit customer"],
-    )
-    assert "REFUND_CAP_EXCEEDED" in reasons
-    assert "$50.00" in safe_reply
+def test_output_guard_complex_refund_phrasing():
+    guard = OutputGuard()
+    # Complex phrase with words between refund and amount
+    reply1 = "I have initiated an immediate refund for the duplicate transaction of $12,400."
+    safe_reply1, _, violation1, reasons1 = guard.sanitize_output(reply1, [])
+    assert violation1 is True
+    assert "REFUND_CAP_EXCEEDED" in reasons1
+    assert "manual verification" in safe_reply1
+
+    # Overcharge dispute phrasing
+    reply2 = "I have initiated an automated refund for the overcharged amount of $2,400."
+    safe_reply2, _, violation2, reasons2 = guard.sanitize_output(reply2, [])
+    assert violation2 is True
+    assert "REFUND_CAP_EXCEEDED" in reasons2
+    assert "manual verification" in safe_reply2
+
+    # Inverted dollar amount phrasing
+    reply3 = "We have approved a $3,500 credit to your enterprise account."
+    safe_reply3, _, violation3, reasons3 = guard.sanitize_output(reply3, [])
+    assert violation3 is True
+    assert "REFUND_CAP_EXCEEDED" in reasons3
+
 
