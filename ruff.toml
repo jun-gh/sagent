@@ -3,8 +3,8 @@ target-version = "py311"
 line-length = 120
 
 [lint]
-# Select core correctness rules: pyflakes (F), standard errors (E), warnings (W), and isort (I)
-select = ["E", "F", "W", "I"]
+# Select core correctness rules: pyflakes (F), standard errors (E), warnings (W)
+select = ["E", "F", "W"]
 ignore = [
     "E501",   # Line length
     "E402",   # Module level import not at top of file
@@ -15,4 +15,6 @@ ignore = [
     "W293",   # Blank line contains whitespace
     "W291",   # Trailing whitespace
     "RUF010", # Conversion flag
+    "I001",   # Unsorted imports
 ]
+

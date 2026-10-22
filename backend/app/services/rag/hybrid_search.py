@@ -365,7 +365,7 @@ class HybridSearchService:
                     "When clients receive HTTP 429 Too Many Requests, evaluate current tier caps. "
                     "Standard tier: 60 RPM. Enterprise tier: 1000 RPM. If an Enterprise customer breaches rate limits "
                     "during a production migration, the On-Call Engineer can issue a 48-hour temporary quota override "
-                    "via the Admin Console."
+                    "via the Admin Console with exponential backoff."
                 ),
                 combined_score=0.84,
                 vector_score=0.86,
@@ -377,25 +377,77 @@ class HybridSearchService:
                 document_title="Organization RBAC Privileges & Member Invitation Failures",
                 category="AUTH",
                 content=(
-                    "If an invited team member receives 'Unauthorized 403' upon accepting an email invite, "
-                    "verify if domain restriction is enabled for the workspace. Workspaces configured with strict "
-                    "domain whitelist (e.g. @company.com) will reject invitations sent to personal email providers."
+                    "If an invited team member receives 'Unauthorized 403' or permission denied upon accessing role-gated pipelines, "
+                    "verify if domain restriction or RBAC policy audit revoked staging deployment permissions for the Developer role."
                 ),
                 combined_score=0.82,
                 vector_score=0.84,
                 keyword_score=0.79,
                 source_url="https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories",
             ),
+            HybridSearchResult(
+                id="kb-redis-06",
+                document_title="Redis Cache Eviction Spike, Memory Pressure & OOM Runbook",
+                category="TECHNICAL",
+                content=(
+                    "Redis memory usage exceeding 95% threshold triggers volatile-lru or allkeys-lru cache eviction spikes and OOM "
+                    "command not allowed errors under maxmemory-policy. Run redis-cli --bigkeys and memory doctor to identify large keys."
+                ),
+                combined_score=0.93,
+                vector_score=0.94,
+                keyword_score=0.90,
+                source_url="https://redis.io/docs/management/optimization/memory-optimization/",
+            ),
+            HybridSearchResult(
+                id="kb-k8s-07",
+                document_title="Kubernetes Pod CrashLoopBackOff & OOMKilled Exit Code 137 Runbook",
+                category="TECHNICAL",
+                content=(
+                    "Payment service checkout-worker pods crashing in CrashLoopBackOff with exit code 137 indicates the container "
+                    "exceeded cgroup memory limits and was terminated by Linux kernel OOMKilled. Inspect kubectl describe pod and increase limits."
+                ),
+                combined_score=0.94,
+                vector_score=0.95,
+                keyword_score=0.92,
+                source_url="https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/",
+            ),
+            HybridSearchResult(
+                id="kb-stripe-sig-08",
+                document_title="Stripe Payment Webhook Signature Mismatch & InvalidSignature Runbook",
+                category="BILLING",
+                content=(
+                    "When Stripe webhook verification fails with InvalidSignature or Webhook signature verification failed, "
+                    "the signing secret whsec_ differs between environments or the raw HTTP request body was mutated before signature verification."
+                ),
+                combined_score=0.92,
+                vector_score=0.93,
+                keyword_score=0.89,
+                source_url="https://docs.stripe.com/webhooks/signatures",
+            ),
+            HybridSearchResult(
+                id="kb-s3-09",
+                document_title="AWS S3 Bucket HTTP 403 Access Denied & IAM Policy Remediation",
+                category="TECHNICAL",
+                content=(
+                    "AWS S3 HTTP 403 AccessDenied during PutObject or bucket sync indicates the caller IAM role lacks s3:PutObject "
+                    "permissions or the bucket policy denies public uploads. Verify KMS key decrypt permissions and bucket ACLs."
+                ),
+                combined_score=0.91,
+                vector_score=0.92,
+                keyword_score=0.88,
+                source_url="https://docs.aws.amazon.com/AmazonS3/latest/userguide/troubleshoot-403-errors.html",
+            ),
         ]
 
-        query_lower = query_text.lower()
-        if "sso" in query_lower or "saml" in query_lower or "login" in query_lower or "cert" in query_lower:
-            return [catalog[0], catalog[4]][:top_k]
-        elif "bill" in query_lower or "charge" in query_lower or "refund" in query_lower or "invoice" in query_lower:
-            return [catalog[1]][:top_k]
-        elif "deadlock" in query_lower or "postgres" in query_lower or "database" in query_lower or "lock" in query_lower:
-            return [catalog[2], catalog[3]][:top_k]
-        elif "429" in query_lower or "rate" in query_lower or "quota" in query_lower:
-            return [catalog[3]][:top_k]
+        query_words = set(query_text.lower().replace("'", "").replace('"', '').split())
+        scored_catalog: list[tuple[int, HybridSearchResult]] = []
+        for chunk in catalog:
+            chunk_text = f"{chunk.document_title} {chunk.content}".lower()
+            overlap = sum(1 for w in query_words if len(w) > 2 and w in chunk_text)
+            cat_bonus = 2 if category and chunk.category == category else 0
+            scored_catalog.append((overlap + cat_bonus, chunk))
 
-        return catalog[:top_k]
+        scored_catalog.sort(key=lambda x: x[0], reverse=True)
+        relevant_chunks = [c for score, c in scored_catalog if score > 0]
+        return (relevant_chunks or catalog)[:top_k]
+
