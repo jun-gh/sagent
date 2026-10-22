@@ -2,6 +2,8 @@
 
 An enterprise-grade, autonomous Ticket Triage AI multi-agent platform that ingests incoming customer and technical support tickets, classifies intent/urgency, retrieves grounding knowledge via hybrid RAG (pgvector dense embeddings + PostgreSQL FTS BM25 keyword search), coordinates resolution actions via multi-agent orchestration, protects users with comprehensive security guardrails, and provides continuous quality gating through systematic AI evaluations (Evals) and real-time operational telemetry.
 
+🔗 **Live:** [sagent-ph.vercel.app](https://sagent-ph.vercel.app/)
+🔗 **API:** [sagent-3o6a.onrender.com](https://sagent-3o6a.onrender.com/)
 ---
 
 ## System Architecture Overview
