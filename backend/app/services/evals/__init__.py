@@ -1,7 +1,7 @@
 from app.services.evals.evaluator import (
+    EvalSummaryReport,
     SagentEvaluator,
     TestCaseResult,
-    EvalSummaryReport,
 )
 
-__all__ = ["SagentEvaluator", "TestCaseResult", "EvalSummaryReport"]
+__all__ = ["EvalSummaryReport", "SagentEvaluator", "TestCaseResult"]

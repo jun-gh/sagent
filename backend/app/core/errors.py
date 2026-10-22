@@ -1,4 +1,5 @@
-from typing import Any, Optional
+from typing import Any
+
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -8,7 +9,7 @@ class ErrorDetail(BaseModel):
     code: str
     message: str
     retries_attempted: int = 0
-    details: Optional[Any] = None
+    details: Any | None = None
 
 
 class ErrorEnvelope(BaseModel):
@@ -23,7 +24,7 @@ class SagentException(Exception):
         code: str = "INTERNAL_ERROR",
         status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
         retries_attempted: int = 0,
-        details: Optional[Any] = None,
+        details: Any | None = None,
     ):
         super().__init__(message)
         self.message = message
@@ -38,7 +39,7 @@ class RateLimitExceededException(SagentException):
         self,
         message: str = "Gemini API quota exhausted. Please try again shortly.",
         retries_attempted: int = 3,
-        details: Optional[Any] = None,
+        details: Any | None = None,
     ):
         super().__init__(
             message=message,
@@ -55,7 +56,7 @@ class GeminiAPIException(SagentException):
         message: str,
         code: str = "GEMINI_API_ERROR",
         retries_attempted: int = 0,
-        details: Optional[Any] = None,
+        details: Any | None = None,
     ):
         super().__init__(
             message=message,
@@ -77,7 +78,7 @@ class ResourceNotFoundException(SagentException):
 
 
 class InvalidTicketDataException(SagentException):
-    def __init__(self, message: str, details: Optional[Any] = None):
+    def __init__(self, message: str, details: Any | None = None):
         super().__init__(
             message=message,
             code="VALIDATION_ERROR",
@@ -91,7 +92,7 @@ class SessionLimitReachedException(SagentException):
     def __init__(
         self,
         max_tickets: int = 10,
-        message: Optional[str] = None,
+        message: str | None = None,
     ):
         msg = message or f"Maximum session limit reached ({max_tickets} tickets). Please start a new session to submit more tickets."
         super().__init__(
@@ -107,7 +108,7 @@ class SecurityQuarantineException(SagentException):
     def __init__(
         self,
         message: str = "Input quarantined by security guardrails (prompt injection or adversarial pattern detected).",
-        reasons: Optional[Any] = None,
+        reasons: Any | None = None,
     ):
         super().__init__(
             message=message,
@@ -150,7 +151,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     content = ErrorEnvelope(
         error=ErrorDetail(
             code="INTERNAL_SERVER_ERROR",
-            message=f"An unexpected error occurred: {str(exc)}",
+            message=f"An unexpected error occurred: {exc!s}",
             retries_attempted=0,
             details=None,
         )

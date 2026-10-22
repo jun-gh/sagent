@@ -1,5 +1,6 @@
 import time
-from typing import List, Dict, Any
+from typing import Any
+
 from app.services.ai.gemini_client import GeminiClient
 
 
@@ -42,8 +43,8 @@ Output a valid JSON object matching this schema:
         customer_tier: str,
         category: str,
         urgency: str,
-        grounding_chunks: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        grounding_chunks: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """Synthesizes grounded resolution and internal action plan."""
         chunks_text = "\n\n".join([
             f"=== Runbook: {c['title']} ===\n{c['content']}"

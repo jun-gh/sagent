@@ -1,6 +1,5 @@
-import re
 import logging
-from typing import List, Tuple, Dict, Any, Optional
+import re
 
 from .security_types import PIITokenMap
 
@@ -16,7 +15,7 @@ class OutputGuard:
     # Default fallback threshold ($250 USD)
     MAX_AUTOMATED_REFUND_USD = 250.0
 
-    LEAKAGE_PATTERNS: List[Tuple[str, re.Pattern]] = [
+    LEAKAGE_PATTERNS: list[tuple[str, re.Pattern]] = [
         # Internal connection strings
         (
             "DB_CONNECTION_STRING",
@@ -36,7 +35,7 @@ class OutputGuard:
         ),
     ]
 
-    REFUND_PATTERNS: List[re.Pattern] = [
+    REFUND_PATTERNS: list[re.Pattern] = [
         # Phrase starting with refund/credit action followed by dollar amount (e.g. "refund for the duplicate transaction of $12,400")
         re.compile(
             r"(?i)\b(?:refund|credit|compensate|reimburse|charge\s*back)(?:ed|ing|s|ment)?\b[^.\n]{0,80}?(?:\$|USD\s*)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?)"
@@ -53,7 +52,7 @@ class OutputGuard:
     # Backward compatibility alias
     REFUND_PATTERN = REFUND_PATTERNS[0]
 
-    def __init__(self, max_refund_usd: Optional[float] = None):
+    def __init__(self, max_refund_usd: float | None = None):
         if max_refund_usd is not None:
             self.max_refund_usd = float(max_refund_usd)
         else:
@@ -66,15 +65,15 @@ class OutputGuard:
     def sanitize_output(
         self,
         customer_reply: str,
-        internal_action_plan: List[str],
-        token_map: Optional[PIITokenMap] = None,
-    ) -> Tuple[str, List[str], bool, List[str]]:
+        internal_action_plan: list[str],
+        token_map: PIITokenMap | None = None,
+    ) -> tuple[str, list[str], bool, list[str]]:
         """
         Validates customer reply and action plan.
         Returns:
             sanitized_reply, sanitized_action_plan, policy_violation_found, reasons
         """
-        reasons: List[str] = []
+        reasons: list[str] = []
         violation = False
         safe_reply = customer_reply
 
@@ -110,7 +109,7 @@ class OutputGuard:
                     pass
 
         # Check 3: Clean internal action plan
-        safe_plan: List[str] = []
+        safe_plan: list[str] = []
         for step in internal_action_plan:
             cleaned_step = step
             for leak_name, pattern in self.LEAKAGE_PATTERNS:

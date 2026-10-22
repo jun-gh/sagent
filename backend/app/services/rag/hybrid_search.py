@@ -1,8 +1,10 @@
 import logging
 import math
-from typing import List, Optional, Tuple, Dict, Any
-from sqlalchemy import select, func, text
+from typing import Any
+
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.knowledge import ContextChunk
 from app.schemas.knowledge import HybridSearchResult
 from app.services.ai.gemini_client import GeminiClient
@@ -10,7 +12,7 @@ from app.services.ai.gemini_client import GeminiClient
 logger = logging.getLogger("sagent.rag")
 
 
-def sanitize_url(url: Optional[str], category: str = "", title: str = "") -> Optional[str]:
+def sanitize_url(url: str | None, category: str = "", title: str = "") -> str | None:
     """Ensures runbook source URL is a real public documentation link."""
     if not url or "internal" in url:
         t = (title or "").lower()
@@ -36,19 +38,19 @@ class HybridSearchService:
     3. Reciprocal Rank Fusion (RRF) combining both signals
     """
 
-    def __init__(self, gemini_client: Optional[GeminiClient] = None):
+    def __init__(self, gemini_client: GeminiClient | None = None):
         self.gemini_client = gemini_client or GeminiClient()
 
     async def search(
         self,
-        session: Optional[AsyncSession],
+        session: AsyncSession | None,
         query_text: str,
-        category: Optional[str] = None,
+        category: str | None = None,
         top_k: int = 5,
         dense_weight: float = 0.6,
         keyword_weight: float = 0.4,
         rrf_k: int = 60,
-    ) -> List[HybridSearchResult]:
+    ) -> list[HybridSearchResult]:
         """
         Executes hybrid search over knowledge base context chunks.
         """
@@ -56,7 +58,7 @@ class HybridSearchService:
             return self._default_static_chunks(query_text, category, top_k)
 
         # Step 1: Generate query embedding
-        query_embedding: Optional[List[float]] = None
+        query_embedding: list[float] | None = None
         try:
             query_embedding = await self.gemini_client.get_embedding(query_text)
         except Exception as e:
@@ -93,13 +95,13 @@ class HybridSearchService:
         self,
         session: AsyncSession,
         query_text: str,
-        query_embedding: Optional[List[float]],
-        category: Optional[str],
+        query_embedding: list[float] | None,
+        category: str | None,
         top_k: int,
         dense_weight: float,
         keyword_weight: float,
         rrf_k: int,
-    ) -> List[HybridSearchResult]:
+    ) -> list[HybridSearchResult]:
         """
         Executes PostgreSQL query with vector similarity and full-text search.
         """
@@ -166,14 +168,14 @@ class HybridSearchService:
             LIMIT {top_k};
             """
 
-        params: Dict[str, Any] = {"query_val": clean_query}
+        params: dict[str, Any] = {"query_val": clean_query}
         if category:
             params["category_val"] = category
 
         result = await session.execute(text(sql), params)
         rows = result.fetchall()
 
-        results: List[HybridSearchResult] = []
+        results: list[HybridSearchResult] = []
         for r in rows:
             results.append(
                 HybridSearchResult(
@@ -191,7 +193,7 @@ class HybridSearchService:
         return results
 
     @staticmethod
-    def _prune_relative_tail(results: List[HybridSearchResult]) -> List[HybridSearchResult]:
+    def _prune_relative_tail(results: list[HybridSearchResult]) -> list[HybridSearchResult]:
         """
         Relative Score Pruning:
         In hybrid RRF search, when a dominant winner exists (e.g. matching both dense
@@ -230,12 +232,12 @@ class HybridSearchService:
 
     async def _search_in_memory_fallback(
         self,
-        session: Optional[AsyncSession],
+        session: AsyncSession | None,
         query_text: str,
-        query_embedding: Optional[List[float]],
-        category: Optional[str],
+        query_embedding: list[float] | None,
+        category: str | None,
         top_k: int,
-    ) -> List[HybridSearchResult]:
+    ) -> list[HybridSearchResult]:
         """
         Pure Python in-memory search fallback with relevance thresholding.
         """
@@ -255,7 +257,7 @@ class HybridSearchService:
         if not chunks:
             return self._default_static_chunks(query_text, category, top_k)
 
-        scored: List[Tuple[float, float, float, ContextChunk]] = []
+        scored: list[tuple[float, float, float, ContextChunk]] = []
         STOP_WORDS = {
             "policy", "guide", "runbook", "protocol", "how", "to", "for", "the",
             "in", "on", "and", "with", "a", "an", "of", "is", "at", "by", "from"
@@ -307,8 +309,8 @@ class HybridSearchService:
         ]
 
     def _default_static_chunks(
-        self, query_text: str, category: Optional[str], top_k: int
-    ) -> List[HybridSearchResult]:
+        self, query_text: str, category: str | None, top_k: int
+    ) -> list[HybridSearchResult]:
         """Pre-packaged enterprise runbook knowledge chunks for grounding."""
         catalog = [
             HybridSearchResult(

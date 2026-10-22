@@ -1,0 +1,18 @@
+# Ruff Configuration for Sagent
+target-version = "py311"
+line-length = 120
+
+[lint]
+# Select core correctness rules: pyflakes (F), standard errors (E), warnings (W), and isort (I)
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",   # Line length
+    "E402",   # Module level import not at top of file
+    "B008",   # Do not perform function calls in argument defaults (FastAPI Depends)
+    "BLE001", # Do not catch blind exception (handled by application error envelopes)
+    "S110",   # try/except/pass
+    "RUF012", # Mutable default value in classvar
+    "W293",   # Blank line contains whitespace
+    "W291",   # Trailing whitespace
+    "RUF010", # Conversion flag
+]

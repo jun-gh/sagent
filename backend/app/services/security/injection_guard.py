@@ -1,6 +1,5 @@
-import re
 import logging
-from typing import List, Tuple, Dict, Any
+import re
 
 from .security_types import SecurityEvaluation, SecurityVerdict
 
@@ -15,7 +14,7 @@ class InjectionGuard:
     """
 
     # Signatures for prompt injection, role hijacking, and instruction escapes
-    ATTACK_SIGNATURES: List[Tuple[str, re.Pattern, float]] = [
+    ATTACK_SIGNATURES: list[tuple[str, re.Pattern, float]] = [
         # 1. Instruction Reset & Override
         (
             "INSTRUCTION_OVERRIDE",
@@ -81,14 +80,13 @@ class InjectionGuard:
                 action_taken="PROCEED",
             )
 
-        detected_reasons: List[str] = []
+        detected_reasons: list[str] = []
         max_risk = 0.0
 
         for rule_name, regex, risk_weight in self.ATTACK_SIGNATURES:
             if regex.search(text):
                 detected_reasons.append(rule_name)
-                if risk_weight > max_risk:
-                    max_risk = risk_weight
+                max_risk = max(max_risk, risk_weight)
 
         injection_found = max_risk >= 0.70
 

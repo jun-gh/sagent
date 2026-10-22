@@ -1,5 +1,6 @@
 import logging
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -7,6 +8,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import declarative_base
+
 from app.core.config import get_settings
 
 logger = logging.getLogger("sagent.database")

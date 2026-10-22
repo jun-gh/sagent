@@ -1,8 +1,8 @@
-import time
 import logging
-from typing import Dict, List, Optional
+import time
 from collections import defaultdict
-from fastapi import Request, Header, HTTPException, status, Depends
+
+from fastapi import Header, Request
 
 from app.core.config import get_settings
 from app.core.errors import RateLimitExceededException, UnauthorizedAPIException
@@ -18,7 +18,7 @@ class SlidingWindowRateLimiter:
     def __init__(self, requests_per_minute: int = 120):
         self.rpm = requests_per_minute
         self.window_seconds = 60.0
-        self._history: Dict[str, List[float]] = defaultdict(list)
+        self._history: dict[str, list[float]] = defaultdict(list)
 
     def check(self, client_ip: str) -> bool:
         now = time.time()
@@ -51,8 +51,8 @@ async def verify_rate_limit(request: Request):
 
 async def verify_api_key(
     request: Request,
-    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
-    authorization: Optional[str] = Header(None, alias="Authorization"),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    authorization: str | None = Header(None, alias="Authorization"),
 ):
     """
     Dependency verifying API Key if REQUIRE_API_KEY is enabled.

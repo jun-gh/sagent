@@ -1,5 +1,6 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import config, tickets, kb, metrics
+
+from app.api.v1.endpoints import config, kb, metrics, tickets
 
 api_router = APIRouter()
 

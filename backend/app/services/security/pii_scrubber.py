@@ -1,6 +1,6 @@
-import re
 import logging
-from typing import List, Tuple, Dict, Any, Optional
+import re
+from typing import Any
 
 from .security_types import PIIItem, PIITokenMap, SanitizedPayload
 
@@ -31,7 +31,7 @@ class PIIScrubber:
     """
 
     # Pre-compiled high-performance regex patterns
-    PATTERNS: List[Tuple[str, re.Pattern, Optional[Any]]] = [
+    PATTERNS: list[tuple[str, re.Pattern, Any | None]] = [
         # 1. Private Keys
         (
             "PRIVATE_KEY",
@@ -136,9 +136,9 @@ class PIIScrubber:
             )
 
         sanitized = text
-        token_items: List[PIIItem] = []
+        token_items: list[PIIItem] = []
         entities_found_set = set()
-        entity_counters: Dict[str, int] = {}
+        entity_counters: dict[str, int] = {}
 
         for entity_type, regex, validator in self.PATTERNS:
             # Find all matches

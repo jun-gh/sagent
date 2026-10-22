@@ -2,8 +2,10 @@ import asyncio
 import json
 import logging
 import random
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 import httpx
+
 from app.core.config import get_settings
 from app.core.errors import GeminiAPIException, RateLimitExceededException
 
@@ -19,7 +21,7 @@ class GeminiClient:
 
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+    def __init__(self, api_key: str | None = None, model: str | None = None):
         settings = get_settings()
         self.api_key = api_key if api_key is not None else settings.GEMINI_API_KEY
         self.model = model or settings.GEMINI_MODEL
@@ -27,7 +29,7 @@ class GeminiClient:
         self.max_retries = settings.MAX_GEMINI_RETRIES
         self.base_delay = settings.RETRY_BASE_DELAY
         self.max_delay = settings.RETRY_MAX_DELAY
-        self.last_usage_metadata: Dict[str, int] = {
+        self.last_usage_metadata: dict[str, int] = {
             "prompt_tokens": 0,
             "completion_tokens": 0,
             "total_tokens": 0,
@@ -41,9 +43,9 @@ class GeminiClient:
         self,
         method: str,
         endpoint: str,
-        payload: Dict[str, Any],
-        params: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        payload: dict[str, Any],
+        params: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """
         Executes an HTTP request to Gemini API with exponential backoff + jitter.
         Retries on 429, 500, 502, 503, 504 and network errors.
@@ -145,9 +147,9 @@ class GeminiClient:
     async def generate_text(
         self,
         prompt: str,
-        system_instruction: Optional[str] = None,
+        system_instruction: str | None = None,
         temperature: float = 0.2,
-        model: Optional[str] = None,
+        model: str | None = None,
     ) -> str:
         """Generates plain text response using Gemini."""
         if not self.is_configured():
@@ -155,7 +157,7 @@ class GeminiClient:
             return self._synthetic_text_response(prompt)
 
         target_model = model or self.model
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "contents": [
                 {
                     "parts": [{"text": prompt}]
@@ -183,22 +185,22 @@ class GeminiClient:
                     return parts[0]["text"]
             return ""
         except Exception as e:
-            raise GeminiAPIException(f"Failed to parse Gemini response: {str(e)}", details=data)
+            raise GeminiAPIException(f"Failed to parse Gemini response: {e!s}", details=data)
 
     async def generate_json(
         self,
         prompt: str,
-        system_instruction: Optional[str] = None,
+        system_instruction: str | None = None,
         temperature: float = 0.1,
-        model: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        model: str | None = None,
+    ) -> dict[str, Any]:
         """Generates structured JSON response using Gemini JSON Mode."""
         if not self.is_configured():
             logger.info("GEMINI_API_KEY is not set. Generating synthetic JSON.")
             return self._synthetic_json_response(prompt)
 
         target_model = model or self.model
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "contents": [
                 {
                     "parts": [{"text": prompt}]
@@ -226,18 +228,15 @@ class GeminiClient:
                 if parts and "text" in parts[0]:
                     raw_text = parts[0]["text"].strip()
                     # Strip markdown code blocks if present
-                    if raw_text.startswith("```json"):
-                        raw_text = raw_text[7:]
-                    if raw_text.startswith("```"):
-                        raw_text = raw_text[3:]
-                    if raw_text.endswith("```"):
-                        raw_text = raw_text[:-3]
+                    raw_text = raw_text.removeprefix("```json")
+                    raw_text = raw_text.removeprefix("```")
+                    raw_text = raw_text.removesuffix("```")
                     return json.loads(raw_text.strip())
             raise GeminiAPIException("No valid candidate returned from Gemini.", details=data)
         except json.JSONDecodeError as jde:
-            raise GeminiAPIException(f"Failed to decode JSON from Gemini output: {str(jde)}", details=data)
+            raise GeminiAPIException(f"Failed to decode JSON from Gemini output: {jde!s}", details=data)
 
-    def _record_usage(self, data: Dict[str, Any], prompt: str = "") -> None:
+    def _record_usage(self, data: dict[str, Any], prompt: str = "") -> None:
         """Extracts usageMetadata from response or estimates tokens."""
         usage = data.get("usageMetadata", {})
         if usage:
@@ -255,11 +254,11 @@ class GeminiClient:
                 "total_tokens": p_tok + c_tok,
             }
 
-    def get_last_usage(self) -> Dict[str, int]:
+    def get_last_usage(self) -> dict[str, int]:
         """Returns the token usage metrics from the most recent Gemini call."""
         return dict(self.last_usage_metadata)
 
-    async def get_embedding(self, text: str) -> List[float]:
+    async def get_embedding(self, text: str) -> list[float]:
         """
         Generates 768-dimensional dense vector embeddings using gemini-embedding-001.
         """
@@ -285,7 +284,7 @@ class GeminiClient:
             raise GeminiAPIException("Empty embedding returned by Gemini.", details=data)
         return embedding_values[:768]
 
-    def _synthetic_embedding(self, text: str) -> List[float]:
+    def _synthetic_embedding(self, text: str) -> list[float]:
         """Creates a normalized 768-dimension pseudo-embedding based on text hash."""
         import hashlib
         import math
@@ -301,7 +300,7 @@ class GeminiClient:
             "Please follow the recommended steps provided below."
         )
 
-    def _synthetic_json_response(self, prompt: str) -> Dict[str, Any]:
+    def _synthetic_json_response(self, prompt: str) -> dict[str, Any]:
         """Realistic fallback when running locally without an active Gemini API key."""
         prompt_lower = prompt.lower()
         if "sso" in prompt_lower or "saml" in prompt_lower or "auth" in prompt_lower or "login" in prompt_lower:

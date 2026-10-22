@@ -1,7 +1,7 @@
-import json
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from app.schemas.ticket import TicketTriageRequest, TicketTriageResponse
@@ -30,7 +30,7 @@ class TestCaseResult(BaseModel):
     expected_security: str
     confidence_score: float
     citations_count: int
-    failure_reasons: List[str] = Field(default_factory=list)
+    failure_reasons: list[str] = Field(default_factory=list)
 
 
 class EvalSummaryReport(BaseModel):
@@ -49,7 +49,7 @@ class EvalSummaryReport(BaseModel):
     total_tokens: int = 0
     total_cost_usd: float = 0.0
     is_ci_passed: bool = False
-    results: List[TestCaseResult] = Field(default_factory=list)
+    results: list[TestCaseResult] = Field(default_factory=list)
 
 
 class SagentEvaluator:
@@ -59,18 +59,18 @@ class SagentEvaluator:
     checks guardrail safety gates, and produces structured markdown reports.
     """
 
-    def __init__(self, orchestrator: Optional[TriageOrchestrator] = None):
+    def __init__(self, orchestrator: TriageOrchestrator | None = None):
         self.orchestrator = orchestrator or TriageOrchestrator()
 
     async def evaluate_dataset(
         self,
-        dataset: List[Dict[str, Any]],
+        dataset: list[dict[str, Any]],
         threshold_accuracy: float = 85.0,
     ) -> EvalSummaryReport:
         """
         Executes full evaluation across all cases in golden dataset.
         """
-        results: List[TestCaseResult] = []
+        results: list[TestCaseResult] = []
         total_tokens = 0
         total_cost = 0.0
 
@@ -108,7 +108,7 @@ class SagentEvaluator:
                         expected_security=case.get("expected_security_verdict", "PASSED"),
                         confidence_score=0.0,
                         citations_count=0,
-                        failure_reasons=[f"Exception: {str(e)}"],
+                        failure_reasons=[f"Exception: {e!s}"],
                     )
                 )
                 continue
@@ -195,7 +195,6 @@ class SagentEvaluator:
         passed_count = sum(1 for r in results if r.passed)
         cat_passed = sum(1 for r in results if r.category_match)
         urg_passed = sum(1 for r in results if r.urgency_match)
-        sec_passed = sum(1 for r in results if r.security_match)
         grounding_passed = sum(1 for r in results if r.grounding_match)
         policy_passed = sum(1 for r in results if r.policy_match)
 

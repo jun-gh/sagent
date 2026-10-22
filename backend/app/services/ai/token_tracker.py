@@ -1,14 +1,15 @@
 import logging
 import math
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger("sagent.telemetry")
 
 # Standard Google Gemini API Pricing (USD per 1 Million tokens)
 # Source: Google Cloud Vertex AI & Google AI Studio pricing tiers
-MODEL_PRICING: Dict[str, Dict[str, float]] = {
+MODEL_PRICING: dict[str, dict[str, float]] = {
     # Gemini 2.5 Flash / 1.5 Flash
     "gemini-2.5-flash": {"input_per_million": 0.075, "output_per_million": 0.30},
     "gemini-1.5-flash": {"input_per_million": 0.075, "output_per_million": 0.30},
@@ -72,17 +73,17 @@ class MetricsCollector:
     def __init__(self) -> None:
         self.start_time = time.time()
         self.total_requests: int = 0
-        self.latencies_ms: List[float] = []
+        self.latencies_ms: list[float] = []
         self.total_prompt_tokens: int = 0
         self.total_completion_tokens: int = 0
         self.total_cost_usd: float = 0.0
-        self.security_stats: Dict[str, int] = {
+        self.security_stats: dict[str, int] = {
             "QUARANTINED": 0,
             "REDACTED": 0,
             "PASSED": 0,
         }
-        self.category_counts: Dict[str, int] = {}
-        self.urgency_counts: Dict[str, int] = {}
+        self.category_counts: dict[str, int] = {}
+        self.urgency_counts: dict[str, int] = {}
 
     def record_request(
         self,
@@ -109,7 +110,7 @@ class MetricsCollector:
         self.category_counts[category] = self.category_counts.get(category, 0) + 1
         self.urgency_counts[urgency] = self.urgency_counts.get(urgency, 0) + 1
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Returns comprehensive operational metrics summary."""
         uptime = round(time.time() - self.start_time, 1)
         sorted_latencies = sorted(self.latencies_ms)

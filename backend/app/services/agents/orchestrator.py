@@ -1,35 +1,35 @@
+import logging
 import time
 import uuid
-import logging
-from typing import List, Optional
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.errors import RateLimitExceededException
-from app.models.ticket import Ticket, TicketStatus, TicketUrgency, TicketCategory
 from app.models.audit import AuditLog
+from app.models.ticket import Ticket, TicketCategory, TicketStatus, TicketUrgency
 from app.schemas.ticket import (
+    AgentStep,
     TicketTriageRequest,
     TicketTriageResponse,
-    AgentStep,
 )
-from app.services.ai.gemini_client import GeminiClient
-from app.services.rag.hybrid_search import HybridSearchService
-from app.services.agents.triage_agent import TriageAgent
 from app.services.agents.researcher_agent import ResearcherAgent
 from app.services.agents.resolution_agent import ResolutionAgent
-from app.services.security import (
-    PIIScrubber,
-    InjectionGuard,
-    OutputGuard,
-    SecurityVerdict,
-)
+from app.services.agents.triage_agent import TriageAgent
+from app.services.ai.gemini_client import GeminiClient
 from app.services.ai.token_tracker import (
-    TokenUsage,
     LatencyBreakdown,
     TelemetryData,
+    TokenUsage,
     calculate_cost,
     metrics_collector,
+)
+from app.services.rag.hybrid_search import HybridSearchService
+from app.services.security import (
+    InjectionGuard,
+    OutputGuard,
+    PIIScrubber,
+    SecurityVerdict,
 )
 
 logger = logging.getLogger("sagent.orchestrator")
@@ -43,11 +43,11 @@ class TriageOrchestrator:
 
     def __init__(
         self,
-        gemini_client: Optional[GeminiClient] = None,
-        hybrid_search: Optional[HybridSearchService] = None,
-        pii_scrubber: Optional[PIIScrubber] = None,
-        injection_guard: Optional[InjectionGuard] = None,
-        output_guard: Optional[OutputGuard] = None,
+        gemini_client: GeminiClient | None = None,
+        hybrid_search: HybridSearchService | None = None,
+        pii_scrubber: PIIScrubber | None = None,
+        injection_guard: InjectionGuard | None = None,
+        output_guard: OutputGuard | None = None,
     ):
         self.settings = get_settings()
         self.gemini_client = gemini_client or GeminiClient()
@@ -65,7 +65,7 @@ class TriageOrchestrator:
     async def triage_ticket(
         self,
         request: TicketTriageRequest,
-        session: Optional[AsyncSession] = None,
+        session: AsyncSession | None = None,
     ) -> TicketTriageResponse:
         """Alias for execute_triage."""
         return await self.execute_triage(request, session=session)
@@ -73,7 +73,7 @@ class TriageOrchestrator:
     async def execute_triage(
         self,
         request: TicketTriageRequest,
-        session: Optional[AsyncSession] = None,
+        session: AsyncSession | None = None,
     ) -> TicketTriageResponse:
         """
         Executes end-to-end multi-agent triage pipeline with Phase 2 Security Guardrails.
@@ -88,7 +88,7 @@ class TriageOrchestrator:
             )
 
         start_total = time.perf_counter()
-        agent_steps: List[AgentStep] = []
+        agent_steps: list[AgentStep] = []
         ticket_id = str(uuid.uuid4())
 
         # =========================================================================
