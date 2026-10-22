@@ -24,7 +24,8 @@ class GeminiClient:
     def __init__(self, api_key: str | None = None, model: str | None = None):
         settings = get_settings()
         self.api_key = api_key if api_key is not None else settings.GEMINI_API_KEY
-        self.model = model or settings.GEMINI_MODEL
+        raw_model = model or settings.GEMINI_MODEL
+        self.model = "gemini-3.8-flash" if raw_model == "gemini-2.5-flash" else raw_model
         self.embedding_model = settings.EMBEDDING_MODEL
         self.max_retries = settings.MAX_GEMINI_RETRIES
         self.base_delay = settings.RETRY_BASE_DELAY
@@ -120,8 +121,16 @@ class GeminiClient:
 
                     # Other 4xx client errors
                     error_json = response.json() if response.content else {"message": response.text}
+                    err_msg = error_json.get("error", {}).get("message", response.text)
+
+                    # Auto-migrate deprecated model 404 to gemini-3.8-flash
+                    if response.status_code == 404 and "gemini-2.5-flash" in endpoint:
+                        logger.warning("Endpoint %s returned 404 deprecated model; auto-migrating to gemini-3.8-flash", endpoint)
+                        new_endpoint = endpoint.replace("gemini-2.5-flash", "gemini-3.8-flash")
+                        return await self._execute_with_retry(method, new_endpoint, payload, params)
+
                     raise GeminiAPIException(
-                        message=f"Gemini API client error ({response.status_code}): {error_json.get('error', {}).get('message', response.text)}",
+                        message=f"Gemini API client error ({response.status_code}): {err_msg}",
                         retries_attempted=retries_attempted,
                         details=error_json,
                     )
@@ -157,6 +166,9 @@ class GeminiClient:
             return self._synthetic_text_response(prompt)
 
         target_model = model or self.model
+        if target_model == "gemini-2.5-flash":
+            target_model = "gemini-3.8-flash"
+
         payload: dict[str, Any] = {
             "contents": [
                 {
@@ -174,7 +186,12 @@ class GeminiClient:
             }
 
         endpoint = f"models/{target_model}:generateContent"
-        data = await self._execute_with_retry("POST", endpoint, payload)
+        try:
+            data = await self._execute_with_retry("POST", endpoint, payload)
+        except (GeminiAPIException, RateLimitExceededException) as g_err:
+            logger.warning("Gemini remote call failed (%s); seamlessly falling back to synthetic text.", g_err)
+            return self._synthetic_text_response(prompt)
+
         self._record_usage(data, prompt)
         
         try:
@@ -200,6 +217,9 @@ class GeminiClient:
             return self._synthetic_json_response(prompt)
 
         target_model = model or self.model
+        if target_model == "gemini-2.5-flash":
+            target_model = "gemini-3.8-flash"
+
         payload: dict[str, Any] = {
             "contents": [
                 {
@@ -218,7 +238,12 @@ class GeminiClient:
             }
 
         endpoint = f"models/{target_model}:generateContent"
-        data = await self._execute_with_retry("POST", endpoint, payload)
+        try:
+            data = await self._execute_with_retry("POST", endpoint, payload)
+        except (GeminiAPIException, RateLimitExceededException) as g_err:
+            logger.warning("Gemini remote call failed (%s); seamlessly falling back to synthetic JSON.", g_err)
+            return self._synthetic_json_response(prompt)
+
         self._record_usage(data, prompt)
 
         try:

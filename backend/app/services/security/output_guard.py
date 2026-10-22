@@ -86,27 +86,32 @@ class OutputGuard:
                 violation = True
 
         # Check 2: Financial Policy Bounds (Refund Caps)
+        amount_matches = []
         for pat in self.REFUND_PATTERNS:
-            for match in pat.finditer(safe_reply):
-                try:
-                    amount = float(match.group(1).replace(",", ""))
-                    if amount > self.max_refund_usd:
-                        logger.warning(
-                            "Refund of $%.2f exceeds automated policy threshold of $%.2f. Intercepting.",
-                            amount,
-                            self.max_refund_usd,
-                        )
-                        note = (
-                            f"\n\n*Note: Credit adjustments exceeding ${self.max_refund_usd:.2f} "
-                            "require manual verification by our billing operations supervisor.*"
-                        )
-                        if note not in safe_reply:
-                            safe_reply += note
-                        if "REFUND_CAP_EXCEEDED" not in reasons:
-                            reasons.append("REFUND_CAP_EXCEEDED")
-                        violation = True
-                except (ValueError, IndexError):
-                    pass
+            amount_matches.extend(pat.finditer(safe_reply))
+        for m in re.finditer(r"(?:\$|USD\s*)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?)", safe_reply):
+            amount_matches.append(m)
+
+        for match in amount_matches:
+            try:
+                amount = float(match.group(1).replace(",", ""))
+                if amount > self.max_refund_usd:
+                    logger.warning(
+                        "Refund of $%.2f exceeds automated policy threshold of $%.2f. Intercepting.",
+                        amount,
+                        self.max_refund_usd,
+                    )
+                    note = (
+                        f"\n\n*Note: Credit adjustments exceeding ${self.max_refund_usd:.2f} "
+                        "require manual verification by our billing operations supervisor.*"
+                    )
+                    if note not in safe_reply:
+                        safe_reply += note
+                    if "REFUND_CAP_EXCEEDED" not in reasons:
+                        reasons.append("REFUND_CAP_EXCEEDED")
+                    violation = True
+            except (ValueError, IndexError):
+                pass
 
         # Check 3: Clean internal action plan
         safe_plan: list[str] = []

@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     
     # Gemini AI Configuration
     GEMINI_API_KEY: str = Field(default="", description="Google Gemini API Key")
-    GEMINI_MODEL: str = Field(default="gemini-2.5-flash", description="Active Gemini model for triage and reasoning")
+    GEMINI_MODEL: str = Field(default="gemini-3.8-flash", description="Active Gemini model for triage and reasoning")
     EMBEDDING_MODEL: str = Field(default="gemini-embedding-001", description="Model used for text embeddings")
     
     # Database Configuration

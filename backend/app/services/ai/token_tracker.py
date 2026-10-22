@@ -10,7 +10,9 @@ logger = logging.getLogger("sagent.telemetry")
 # Standard Google Gemini API Pricing (USD per 1 Million tokens)
 # Source: Google Cloud Vertex AI & Google AI Studio pricing tiers
 MODEL_PRICING: dict[str, dict[str, float]] = {
-    # Gemini 2.5 Flash / 1.5 Flash
+    # Gemini 3.8 Flash / 2.5 Flash / 1.5 Flash
+    "gemini-3.8-flash": {"input_per_million": 0.075, "output_per_million": 0.30},
+    "gemini-flash-latest": {"input_per_million": 0.075, "output_per_million": 0.30},
     "gemini-2.5-flash": {"input_per_million": 0.075, "output_per_million": 0.30},
     "gemini-1.5-flash": {"input_per_million": 0.075, "output_per_million": 0.30},
     "gemini-2.0-flash": {"input_per_million": 0.10, "output_per_million": 0.40},
@@ -29,7 +31,7 @@ class TokenUsage(BaseModel):
     completion_tokens: int = Field(default=0, description="Tokens produced in the generated response")
     total_tokens: int = Field(default=0, description="Sum of prompt and completion tokens")
     estimated_cost_usd: float = Field(default=0.0, description="Estimated inference cost in USD")
-    model: str = Field(default="gemini-2.5-flash", description="Model name used for calculation")
+    model: str = Field(default="gemini-3.8-flash", description="Model name used for calculation")
 
 
 class LatencyBreakdown(BaseModel):
