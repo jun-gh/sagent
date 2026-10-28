@@ -61,7 +61,7 @@ const RUNBOOK_PRESETS = [
 
 export default function KnowledgeBaseView() {
   const [activeSubTab, setActiveSubTab] = useState('search'); // 'search' | 'directory'
-  const [query, setQuery] = useState('SAML SSO signing certificate expiration');
+  const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
@@ -280,7 +280,7 @@ export default function KnowledgeBaseView() {
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search runbooks with natural language (e.g. redis memory spike, deadlock, stripe refund)..."
+                placeholder="API Rate Limit"
                 className="w-full bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 transition font-mono"
               />
             </div>
