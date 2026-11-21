@@ -4,6 +4,33 @@ An enterprise-grade, autonomous Ticket Triage AI multi-agent platform that inges
 
 🔗 **Live:** [sagent-ph.vercel.app](https://sagent-ph.vercel.app/)
 🔗 **API:** [sagent-3o6a.onrender.com](https://sagent-3o6a.onrender.com/)
+
+---
+
+## Table of Contents
+
+- [System Architecture Overview](#system-architecture-overview)
+  - [Key Technical Pillars](#key-technical-pillars)
+- [Hybrid RAG Search Architecture & Logic](#hybrid-rag-search-architecture--logic)
+  - [1. Dual Search Engines](#1-dual-search-engines)
+  - [2. Reciprocal Rank Fusion (RRF) Formula](#2-reciprocal-rank-fusion-rrf-formula)
+  - [3. Relative-Score Pruning & Precision Gating](#3-relative-score-pruning--precision-gating)
+- [Enterprise Security & Guardrails Architecture](#enterprise-security--guardrails-architecture)
+  - [Security Pillars](#security-pillars)
+- [Systematic AI Evaluations (Evals), Telemetry & Observability](#systematic-ai-evaluations-evals-telemetry--observability)
+  - [1. Golden Evaluation Suite](#1-golden-evaluation-suite-backendtestsevalsgolden_datasetjson)
+  - [2. Automated Quality Gates](#2-automated-quality-gates)
+  - [3. Running Systematic AI Evaluations (CLI)](#3-running-systematic-ai-evaluations-cli)
+  - [4. Real-Time Telemetry & Token Cost Engine](#4-real-time-telemetry--token-cost-engine-get-apiv1metrics)
+  - [5. 1-Click Incident Dispatch & Resolution Hub](#5-1-click-incident-dispatch--resolution-hub)
+- [Repository Structure](#repository-structure)
+- [Local Development Setup](#local-development-setup)
+  - [Option 1: Native Virtual Environment (Fastest)](#option-1-native-virtual-environment-fastest)
+  - [Option 2: Docker Compose (PostgreSQL with pgvector)](#option-2-docker-compose-postgresql-with-pgvector)
+- [Running Automated Tests](#running-automated-tests)
+- [API Endpoints](#api-endpoints)
+- [License & Commercial Inquiries](#license--commercial-inquiries)
+
 ---
 
 ## System Architecture Overview
@@ -20,7 +47,7 @@ An enterprise-grade, autonomous Ticket Triage AI multi-agent platform that inges
              ▼                          ▼                          ▼
     ┌────────────────┐         ┌────────────────┐         ┌────────────────┐
     │  Triage Agent  │         │Researcher Agent│         │Resolution Agent│
-    │ (Intent/Urgency│         │ (Hybrid RAG)   │         │ (Reply/Action) │
+    │(Intent/Urgency)│         │ (Hybrid RAG)   │         │ (Reply/Action) │
     └────────┬───────┘         └────────┬───────┘         └────────┬───────┘
              │                          │                          │
              └──────────────────────────┼──────────────────────────┘
@@ -59,12 +86,13 @@ Sagent implements a full-stack Hybrid Search pipeline that fuses **dense vector 
 
 To combine rank lists from dense vector search and sparse keyword search without requiring fragile cross-engine score normalization, candidates are fused using the standard **Reciprocal Rank Fusion (RRF)** formula:
 
-$$\text{score}(d) = \frac{\text{dense\_weight}}{k + \text{dense\_rank}} + \frac{\text{sparse\_weight}}{k + \text{sparse\_rank}}$$
+$$\text{score}(d) = \frac{w_{\text{dense}}}{k + r_{\text{dense}}(d)} + \frac{w_{\text{sparse}}}{k + r_{\text{sparse}}(d)}$$
 
 #### Parameter Configuration
 - **$k = 60$**: Standard RRF smoothing constant that prevents top-rank positions from overpowering the fused score distribution while rewarding items that rank well across both modalities.
-- **$\text{dense\_weight} = 0.6$**: Weight assigned to semantic vector proximity.
-- **$\text{sparse\_weight} = 0.4$**: Weight assigned to exact full-text keyword matches.
+- **$w_{\text{dense}} = 0.6$**: Weight assigned to semantic vector proximity.
+- **$w_{\text{sparse}} = 0.4$**: Weight assigned to exact full-text keyword matches.
+- **$r_{\text{dense}}(d)$, $r_{\text{sparse}}(d)$**: The 1-based rank positions of document $d$ within the dense vector and sparse keyword search candidate lists.
 - If a document is retrieved by only one branch, the missing rank contribution is evaluated as $0.0$.
 
 #### The "Double-Winner Bonus"
@@ -194,7 +222,7 @@ python backend/scripts/run_evals.py --ci --threshold 85.0 --output eval_report.m
 Sagent continuously profiles every pipeline stage and accumulates token consumption into sub-cent financial accounting:
 - **Latencies**: Real-time p50, p95, p99, and average response times across all agents.
 - **Token Tracking**: Prompt vs. completion tokens parsed directly from Gemini `usageMetadata`.
-- **Cost Modeling**: Dynamic pricing tiers ($0.075 / 1M input, $0.30 / 1M output on Gemini 2.5 Flash).
+- **Cost Modeling**: Dynamic pricing tiers (\$0.075 / 1M input, \$0.30 / 1M output on Gemini 2.5 Flash).
 - **Security Observability**: Live counters of quarantined attacks, sanitized PII tickets, and clean traffic.
 - **Live Observability Modal**: Interactive dashboard modal in the UI displaying live latency percentiles, uptime, token usage, and guardrail statistics directly in the browser.
 
@@ -355,3 +383,14 @@ pytest -v
 | `GET` | `/api/v1/metrics` | Returns real-time latency p50/p95, cumulative tokens, cost, and security metrics |
 | `POST` | `/api/v1/kb/search` | Direct testing of Hybrid RAG (dense + BM25 RRF) |
 | `POST` | `/api/v1/kb/seed` | Seeds default enterprise runbooks into vector store |
+
+---
+
+## License & Commercial Inquiries
+
+Copyright © 2026-present Martin Abanes. All rights reserved.
+
+**Non-Commercial Use**: Free for personal inspection, research, and non-commercial evaluation.  
+**Commercial Use**: Commercial deployment, white-labeling, or client integration requires an explicit commercial agreement or engagement.
+
+For freelance consulting or commercial licensing inquiries, contact Martin Abanes at [miabanes@gmail.com](mailto:miabanes@gmail.com).
